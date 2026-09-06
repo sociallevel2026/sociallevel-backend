@@ -1,0 +1,2080 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SocialLevel — Arena de Problemas</title>
+
+<!-- ===== PWA: manifest, ícono y color de marca ===== -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#21295C">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SocialLevel">
+<meta name="mobile-web-app-capable" content="yes">
+
+<style>
+  :root{
+    --navy:#21295C;
+    --deepblue:#065A82;
+    --teal:#1C7293;
+    --iceblue:#CFE8EF;
+    --amber:#B9793B;
+    --amber-bg:#F3E6D6;
+    --offwhite:#F4F8FA;
+    --white:#FFFFFF;
+    --darktext:#1B2430;
+    --muted:#6B7A85;
+    --line:#E1E9ED;
+    --font-display: Georgia, 'Noto Serif', 'Times New Roman', serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    font-family:var(--font-body);
+    background: #12142c;
+    color:var(--darktext);
+    -webkit-font-smoothing:antialiased;
+  }
+  /* Phone-frame wrapper so the prototype is easy to eyeball on desktop,
+     but the #app itself is what would ship to a WebView on Android. */
+  .stage{
+    min-height:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:28px 12px;
+  }
+  #app{
+    width:100%;
+    max-width:412px;
+    height:844px;
+    max-height:calc(100vh - 56px);
+    background:var(--offwhite);
+    border-radius:34px;
+    overflow:hidden;
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    box-shadow:0 30px 60px rgba(0,0,0,.45), 0 0 0 8px #05060f;
+  }
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    padding:calc(14px + var(--safe-top)) 16px 12px;
+    background:var(--navy);
+    color:var(--white);
+    flex-shrink:0;
+  }
+  .topbar-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .wordmark{
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:18px;
+    letter-spacing:.2px;
+  }
+  .level-chip{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    background:rgba(255,255,255,.08);
+    border:1.4px solid var(--tier-c1, rgba(255,255,255,.18));
+    padding:5px 11px 5px 9px;
+    border-radius:100px;
+    font-size:12.5px;
+    cursor:pointer;
+    box-shadow:0 0 0 3px var(--tier-glow, transparent);
+    transition:box-shadow .4s ease, border-color .4s ease;
+  }
+  .level-chip .dot{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--tier-c1, var(--iceblue));
+    transition:background .4s ease;
+  }
+  .level-chip b{ font-weight:700; }
+
+  .conn-badge{
+    font-size:9px;
+    font-weight:700;
+    padding:2px 8px;
+    border-radius:100px;
+    letter-spacing:.3px;
+    display:none;
+  }
+  .conn-badge.show{ display:inline-block; }
+  .conn-badge.online{ background:rgba(46,125,107,.25); color:#8FE0C4; border:1px solid rgba(46,125,107,.5); }
+  .conn-badge.offline{ background:rgba(185,121,59,.2); color:#FFD9A6; border:1px solid rgba(185,121,59,.4); }
+
+  /* phase strip */
+  .phase-strip{
+    margin-top:12px;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:14px;
+    padding:10px 12px;
+  }
+  .phase-strip-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    font-size:12px;
+    color:var(--iceblue);
+  }
+  .phase-name{
+    font-size:14px;
+    font-weight:700;
+    color:var(--white);
+    margin-top:2px;
+  }
+  .phase-track{
+    margin-top:9px;
+    height:5px;
+    border-radius:4px;
+    background:rgba(255,255,255,.14);
+    overflow:hidden;
+    display:flex;
+  }
+  .phase-seg{
+    height:100%;
+    border-right:2px solid rgba(18,20,44,.55);
+  }
+  .phase-seg:last-child{ border-right:none; }
+  .phase-seg.done{ background:var(--teal); }
+  .phase-seg.active{ background:var(--amber); }
+  .phase-seg.todo{ background:rgba(255,255,255,.12); }
+  .phase-labels{
+    display:flex;
+    justify-content:space-between;
+    margin-top:6px;
+    font-size:9.5px;
+    color:rgba(255,255,255,.55);
+  }
+  .phase-label-item{ display:flex; align-items:center; gap:3px; }
+  .phase-label-item svg{ width:9px; height:9px; opacity:.85; }
+
+  .phase-objective{
+    margin-top:9px;
+    padding-top:9px;
+    border-top:1px solid rgba(255,255,255,.14);
+    font-size:11px;
+    color:#D9E7EE;
+    line-height:1.4;
+  }
+
+  /* ---------- Body / tabs ---------- */
+  .tabpanel{ flex:1; min-height:0; display:none; flex-direction:column; }
+  .tabpanel.visible{ display:flex; }
+
+  /* Arena tab */
+  .problem-card{
+    margin:14px 16px 6px;
+    background:var(--white);
+    border-radius:16px;
+    border:1px solid var(--line);
+    padding:14px 15px;
+    flex-shrink:0;
+  }
+  .problem-eyebrow{
+    font-size:11px;
+    color:var(--teal);
+    font-weight:700;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .problem-title{
+    font-family:var(--font-display);
+    font-size:17px;
+    font-weight:700;
+    color:var(--navy);
+    margin:5px 0 4px;
+    line-height:1.28;
+  }
+  .problem-brief{
+    font-size:12.5px;
+    color:var(--muted);
+    line-height:1.45;
+    max-height:0;
+    overflow:hidden;
+    transition:max-height .25s ease;
+  }
+  .problem-card.expanded .problem-brief{ max-height:220px; }
+  .problem-toggle{
+    margin-top:8px;
+    font-size:12px;
+    color:var(--deepblue);
+    font-weight:600;
+    background:none;
+    border:none;
+    padding:0;
+    cursor:pointer;
+  }
+  .criteria-row{
+    margin-top:10px;
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+  }
+  .criteria-pill{
+    font-size:10.5px;
+    color:var(--deepblue);
+    background:var(--iceblue);
+    padding:4px 9px;
+    border-radius:100px;
+    font-weight:400;
+    transition:background .3s ease, color .3s ease, font-weight .3s ease;
+  }
+  .criteria-pill.emphasis{
+    background:var(--amber);
+    color:var(--white);
+    font-weight:700;
+  }
+
+  .chat-scroll{
+    flex:1;
+    min-height:0;
+    overflow-y:auto;
+    padding:10px 16px 8px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .msg{ max-width:88%; }
+  .msg.mine{ align-self:flex-end; }
+  .msg-meta{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-size:11px;
+    margin-bottom:3px;
+    color:var(--muted);
+  }
+  .msg.mine .msg-meta{ justify-content:flex-end; }
+  .msg-author{ font-weight:700; color:var(--darktext); }
+  .role-tag{
+    font-size:9.5px;
+    font-weight:700;
+    padding:2px 7px;
+    border-radius:100px;
+    letter-spacing:.2px;
+  }
+  .role-generador{ background:#DDEEF2; color:var(--teal); }
+  .role-constructor{ background:#DCE9F0; color:var(--deepblue); }
+  .role-verificador{ background:var(--amber-bg); color:var(--amber); }
+  .role-sintetizador{ background:#DEDFEF; color:var(--navy); }
+
+  .reply-ref{
+    font-size:10.5px;
+    color:var(--muted);
+    border-left:2px solid var(--line);
+    padding-left:7px;
+    margin-bottom:4px;
+  }
+  .bubble{
+    background:var(--white);
+    border:1px solid var(--line);
+    border-radius:14px 14px 14px 4px;
+    padding:9px 12px;
+    font-size:13.5px;
+    line-height:1.42;
+    color:var(--darktext);
+  }
+  .msg.mine .bubble{
+    background:var(--deepblue);
+    color:var(--white);
+    border-color:var(--deepblue);
+    border-radius:14px 14px 4px 14px;
+  }
+  .score-line{
+    margin-top:4px;
+    display:flex;
+    gap:8px;
+    font-size:10px;
+    color:var(--muted);
+    flex-wrap:wrap;
+  }
+  .msg.mine .score-line{ justify-content:flex-end; }
+  .score-chip{
+    background:var(--offwhite);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:1px 6px;
+  }
+  .score-chip.total{ color:var(--amber); font-weight:700; border-color:var(--amber-bg); background:var(--amber-bg); }
+
+  .reply-hint{
+    align-self:flex-start;
+    font-size:10.5px;
+    color:var(--deepblue);
+    background:var(--iceblue);
+    border:none;
+    padding:3px 9px;
+    border-radius:100px;
+    margin-top:2px;
+    cursor:pointer;
+  }
+
+  .system-note{
+    align-self:center;
+    font-size:11px;
+    color:var(--muted);
+    background:var(--white);
+    border:1px dashed var(--line);
+    border-radius:100px;
+    padding:5px 12px;
+    text-align:center;
+  }
+
+  .composer-wrap{
+    flex-shrink:0;
+    border-top:1px solid var(--line);
+    background:var(--white);
+    padding:10px 12px calc(10px + var(--safe-bottom));
+  }
+  .reply-banner{
+    display:none;
+    align-items:center;
+    justify-content:space-between;
+    background:var(--offwhite);
+    border-radius:10px;
+    padding:6px 10px;
+    font-size:11.5px;
+    color:var(--muted);
+    margin-bottom:7px;
+  }
+  .reply-banner.visible{ display:flex; }
+  .reply-banner button{
+    background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:0 2px;
+  }
+  .composer{
+    display:flex;
+    align-items:flex-end;
+    gap:8px;
+  }
+  .composer textarea{
+    flex:1;
+    resize:none;
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:9px 13px;
+    font-family:var(--font-body);
+    font-size:13.5px;
+    max-height:90px;
+    line-height:1.4;
+    background:var(--offwhite);
+  }
+  .composer textarea:focus{ outline:2px solid var(--teal); outline-offset:1px; }
+  .composer textarea:disabled{ color:var(--muted); cursor:not-allowed; }
+  .send-btn{
+    width:38px;height:38px;
+    border-radius:50%;
+    border:none;
+    background:var(--teal);
+    color:var(--white);
+    flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+  }
+  .send-btn:disabled{ background:#B9C4CA; cursor:not-allowed; }
+
+  .locked-composer{
+    display:flex;
+    align-items:center;
+    gap:11px;
+    background:var(--amber-bg);
+    border:1px dashed var(--amber);
+    border-radius:16px;
+    padding:11px 14px;
+  }
+  .locked-icon{
+    width:30px;height:30px;
+    border-radius:50%;
+    background:var(--amber);
+    color:var(--white);
+    flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .locked-text b{ display:block; font-size:12px; color:var(--darktext); }
+  .locked-text span{ font-size:10.8px; color:var(--muted); line-height:1.35; display:block; margin-top:1px; }
+
+  .level-preview-toggle{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    padding:7px 16px;
+    background:#FBF3E9;
+    border-top:1px solid var(--amber-bg);
+    border-bottom:1px solid var(--amber-bg);
+    font-size:10.8px;
+    color:var(--amber);
+    flex-shrink:0;
+  }
+  .level-preview-toggle label{ display:flex; align-items:center; gap:7px; cursor:pointer; font-weight:600; }
+  .level-preview-toggle input{ accent-color:var(--amber); }
+
+  .demo-controls{
+    display:flex;
+    gap:8px;
+    padding:8px 16px 10px;
+    flex-shrink:0;
+  }
+  .demo-btn{
+    flex:1;
+    font-size:11.5px;
+    font-weight:600;
+    padding:8px 10px;
+    border-radius:10px;
+    border:1px solid var(--line);
+    background:var(--white);
+    color:var(--deepblue);
+    cursor:pointer;
+    text-align:center;
+  }
+  .demo-btn.primary{
+    background:var(--navy);
+    color:var(--white);
+    border-color:var(--navy);
+  }
+  .demo-btn:disabled{ opacity:.45; cursor:not-allowed; }
+
+  /* ---------- Perfil tab ---------- */
+  .perfil-scroll{ flex:1; overflow-y:auto; padding:16px; }
+  .level-card{
+    background:linear-gradient(135deg, var(--tier-c1, var(--navy)), var(--tier-c2, var(--deepblue)));
+    border-radius:18px;
+    padding:18px 18px 16px;
+    color:var(--white);
+    transition:background .5s ease;
+  }
+  .level-card-top{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .level-card-title{ font-size:12px; color:var(--iceblue); }
+  .level-card-tier{ font-size:10.5px; color:rgba(255,255,255,.75); margin-top:1px; }
+  .level-num{ font-family:var(--font-display); font-size:34px; font-weight:700; line-height:1; margin-top:2px; }
+  .level-badge{
+    background:rgba(255,255,255,.14);
+    border:1px solid rgba(255,255,255,.25);
+    border-radius:100px;
+    padding:5px 12px;
+    font-size:11.5px;
+    font-weight:700;
+  }
+  .xp-track{
+    margin-top:16px;
+    height:7px;
+    border-radius:5px;
+    background:rgba(255,255,255,.16);
+    overflow:hidden;
+  }
+  .xp-fill{
+    height:100%;
+    background:var(--amber);
+    border-radius:5px;
+    transition:width .4s ease;
+  }
+  .xp-label{ margin-top:6px; font-size:11px; color:rgba(255,255,255,.75); }
+
+  .section-title{
+    font-size:13px;
+    font-weight:700;
+    color:var(--navy);
+    margin:22px 0 10px;
+    font-family:var(--font-display);
+  }
+  .role-bars{ display:flex; flex-direction:column; gap:9px; }
+  .role-bar-row{ display:flex; align-items:center; gap:10px; }
+  .role-bar-label{ width:82px; font-size:11.5px; color:var(--darktext); flex-shrink:0; }
+  .role-bar-track{ flex:1; height:8px; background:var(--line); border-radius:5px; overflow:hidden; }
+  .role-bar-fill{ height:100%; border-radius:5px; }
+  .role-bar-val{ width:26px; text-align:right; font-size:11px; color:var(--muted); flex-shrink:0; }
+
+  .perm-list{ display:flex; flex-direction:column; gap:8px; }
+  .perm-item{
+    display:flex;
+    gap:10px;
+    align-items:flex-start;
+    background:var(--white);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:10px 12px;
+  }
+  .perm-item.locked{ opacity:.5; }
+  .perm-check{
+    width:18px;height:18px;border-radius:50%;
+    flex-shrink:0;margin-top:1px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:700;
+  }
+  .perm-item.unlocked .perm-check{ background:var(--teal); color:var(--white); }
+  .perm-item.locked .perm-check{ background:var(--line); color:var(--muted); }
+  .perm-text b{ display:block; font-size:12.5px; color:var(--darktext); }
+  .perm-text span{ font-size:11px; color:var(--muted); }
+
+  .portfolio-item{
+    background:var(--white);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:11px 13px;
+    margin-bottom:9px;
+  }
+  .portfolio-item-top{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .portfolio-title{ font-size:12.5px; font-weight:700; color:var(--darktext); }
+  .portfolio-score{ font-size:11px; font-weight:700; color:var(--amber); flex-shrink:0; }
+  .portfolio-meta{ font-size:10.5px; color:var(--muted); margin-top:4px; }
+  .empty-note{ font-size:12px; color:var(--muted); font-style:italic; padding:6px 2px 20px; }
+
+  /* ---------- Bottom nav ---------- */
+  .bottomnav{
+    flex-shrink:0;
+    display:flex;
+    border-top:1px solid var(--line);
+    background:var(--white);
+    padding-bottom:var(--safe-bottom);
+  }
+  .navbtn{
+    flex:1;
+    border:none;
+    background:none;
+    padding:10px 0 9px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:3px;
+    font-size:10.5px;
+    color:var(--muted);
+    cursor:pointer;
+  }
+  .navbtn.active{ color:var(--navy); font-weight:700; }
+  .navbtn svg{ width:20px; height:20px; }
+
+  /* toast */
+  .toast{
+    position:absolute;
+    left:16px; right:16px;
+    bottom:118px;
+    background:var(--navy);
+    color:var(--white);
+    border-radius:12px;
+    padding:11px 14px;
+    font-size:12.5px;
+    display:flex;
+    align-items:center;
+    gap:9px;
+    box-shadow:0 10px 24px rgba(0,0,0,.25);
+    opacity:0;
+    transform:translateY(8px);
+    transition:opacity .25s ease, transform .25s ease;
+    pointer-events:none;
+    z-index:20;
+  }
+  .toast.show{ opacity:1; transform:translateY(0); }
+  .toast b{ color:var(--iceblue); }
+  .toast-icon{
+    width:30px;height:30px;
+    border-radius:50%;
+    background:rgba(255,255,255,.14);
+    display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;
+  }
+  .toast-title{ font-weight:700; font-size:12.5px; margin-bottom:1px; }
+  .toast-sub{ font-size:11px; color:rgba(255,255,255,.8); line-height:1.35; }
+  .toast.levelup .toast-title{ color:#FFD9A6; }
+
+  /* sheet (level detail) */
+  .sheet-backdrop{
+    position:absolute; inset:0;
+    background:rgba(10,12,30,.45);
+    opacity:0; pointer-events:none;
+    transition:opacity .2s ease;
+    z-index:30;
+  }
+  .sheet-backdrop.visible{ opacity:1; pointer-events:auto; }
+  .sheet{
+    position:absolute; left:0; right:0; bottom:0;
+    background:var(--white);
+    border-radius:20px 20px 0 0;
+    padding:16px 18px calc(20px + var(--safe-bottom));
+    transform:translateY(100%);
+    transition:transform .25s ease;
+    max-height:70%;
+    overflow-y:auto;
+  }
+  .sheet-backdrop.visible .sheet{ transform:translateY(0); }
+  .sheet-handle{ width:36px; height:4px; background:var(--line); border-radius:3px; margin:0 auto 14px; }
+  .sheet h3{ font-family:var(--font-display); color:var(--navy); font-size:16px; margin:0 0 8px; }
+  .sheet p{ font-size:12.5px; color:var(--muted); line-height:1.5; margin:0 0 10px; }
+
+  .credit{
+    text-align:center;
+    font-size:10.5px;
+    color:#8892a3;
+    margin-top:14px;
+  }
+
+  ::-webkit-scrollbar{ width:0; height:0; }
+
+  /* ---------- Avatars ---------- */
+  .avatar{
+    width:28px;height:28px;
+    border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:11px;
+    font-weight:700;
+    color:var(--white);
+    flex-shrink:0;
+    box-shadow:0 1px 2px rgba(0,0,0,.12);
+  }
+  .avatar.mine-ring{
+    box-shadow:0 0 0 2.5px var(--offwhite), 0 0 0 4.5px var(--tier-c1, var(--teal));
+    transition:box-shadow .4s ease;
+  }
+  .msg-row{ display:flex; gap:8px; align-items:flex-end; }
+  .msg-row.mine{ flex-direction:row-reverse; }
+  .msg-col{ display:flex; flex-direction:column; min-width:0; }
+
+  /* message enter animation */
+  @keyframes msgIn{
+    from{ opacity:0; transform:translateY(6px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+  .msg{ animation: msgIn .28s ease both; }
+
+  /* evaluating chip */
+  .evaluating-chip{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    font-size:10.5px;
+    color:var(--muted);
+    background:var(--offwhite);
+    border:1px solid var(--line);
+    border-radius:100px;
+    padding:3px 9px;
+    margin-top:4px;
+  }
+  .evaluating-dots span{
+    display:inline-block;
+    width:3.5px;height:3.5px;
+    border-radius:50%;
+    background:var(--muted);
+    margin-right:2px;
+    animation: blink 1.1s infinite ease-in-out;
+  }
+  .evaluating-dots span:nth-child(2){ animation-delay:.18s; }
+  .evaluating-dots span:nth-child(3){ animation-delay:.36s; }
+  @keyframes blink{ 0%,80%,100%{ opacity:.25; } 40%{ opacity:1; } }
+
+  /* score reveal animation */
+  @keyframes scoreIn{
+    from{ opacity:0; transform:scale(.92); }
+    to{ opacity:1; transform:scale(1); }
+  }
+  .score-line.reveal{ animation: scoreIn .3s ease both; }
+
+  /* buttons: consistent press feedback for a more crafted feel */
+  .demo-btn, .send-btn, .reply-hint, .navbtn, .problem-toggle{
+    transition: transform .12s ease, background-color .15s ease, opacity .15s ease;
+  }
+  .demo-btn:active, .send-btn:active{ transform:scale(.96); }
+  .reply-hint:active{ transform:scale(.95); }
+
+  /* welcome overlay */
+  .welcome-backdrop{
+    position:absolute; inset:0;
+    background:rgba(10,12,30,.55);
+    display:flex; align-items:center; justify-content:center;
+    padding:22px;
+    z-index:40;
+    opacity:1;
+    transition:opacity .25s ease;
+  }
+  .welcome-backdrop.hidden{ opacity:0; pointer-events:none; }
+  .welcome-card{
+    background:var(--white);
+    border-radius:22px;
+    padding:26px 24px 22px;
+    max-width:340px;
+    text-align:center;
+    box-shadow:0 24px 48px rgba(0,0,0,.35);
+  }
+  .welcome-icon{
+    width:56px;height:56px;
+    border-radius:50%;
+    background:linear-gradient(135deg, var(--navy), var(--teal));
+    display:flex; align-items:center; justify-content:center;
+    margin:0 auto 14px;
+  }
+  .welcome-card h2{
+    font-family:var(--font-display);
+    color:var(--navy);
+    font-size:19px;
+    margin:0 0 10px;
+    line-height:1.3;
+  }
+  .welcome-card p{
+    font-size:13px;
+    color:var(--muted);
+    line-height:1.55;
+    margin:0 0 6px;
+  }
+  .welcome-steps{
+    text-align:left;
+    margin:16px 0 20px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .welcome-step{
+    display:flex;
+    gap:10px;
+    align-items:flex-start;
+    font-size:12.5px;
+    color:var(--darktext);
+  }
+  .welcome-step .num{
+    width:20px;height:20px;
+    border-radius:50%;
+    background:var(--iceblue);
+    color:var(--deepblue);
+    font-size:10.5px;
+    font-weight:700;
+    flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    margin-top:1px;
+  }
+  .welcome-cta{
+    width:100%;
+    border:none;
+    background:var(--navy);
+    color:var(--white);
+    font-weight:700;
+    font-size:13.5px;
+    padding:12px;
+    border-radius:12px;
+    cursor:pointer;
+  }
+  .welcome-cta:active{ transform:scale(.98); }
+
+  /* level-up toast variant */
+  .toast.levelup{
+    background:linear-gradient(135deg, var(--navy), var(--deepblue));
+    border:1px solid rgba(255,255,255,.18);
+  }
+
+  /* ---------- Tier-up celebration (bigger event: crossing into a new color tier) ---------- */
+  .tier-overlay{
+    position:absolute; inset:0;
+    z-index:60;
+    display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(circle at 50% 40%, var(--tier-glow-strong, rgba(28,114,147,.5)), rgba(10,12,30,.72) 70%);
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .5s ease;
+  }
+  .tier-overlay.show{ opacity:1; pointer-events:auto; }
+  .tier-card{
+    background:var(--white);
+    border-radius:22px;
+    padding:30px 26px 26px;
+    max-width:300px;
+    text-align:center;
+    transform:scale(.85);
+    transition:transform .5s cubic-bezier(.2,1.4,.4,1);
+    box-shadow:0 30px 60px rgba(0,0,0,.4);
+  }
+  .tier-overlay.show .tier-card{ transform:scale(1); }
+  .tier-ring{
+    width:74px;height:74px;
+    border-radius:50%;
+    margin:0 auto 16px;
+    display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg, var(--tier-c1, var(--teal)), var(--tier-c2, var(--deepblue)));
+    box-shadow:0 0 0 8px var(--tier-glow, rgba(28,114,147,.35));
+  }
+  .tier-eyebrow{ font-size:10.5px; font-weight:700; letter-spacing:1.5px; color:var(--muted); }
+  .tier-title{ font-family:var(--font-display); font-size:20px; font-weight:700; color:var(--navy); margin-top:6px; }
+  .tier-sub{ font-size:12px; color:var(--muted); margin-top:8px; line-height:1.5; }
+  .tier-dismiss{
+    margin-top:18px;
+    background:var(--tier-c1, var(--navy));
+    color:var(--white);
+    border:none;
+    font-weight:700;
+    font-size:12.5px;
+    padding:10px 22px;
+    border-radius:100px;
+    cursor:pointer;
+  }
+
+  /* subtitle under wordmark */
+  .wordmark-sub{
+    font-size:10.5px;
+    color:rgba(255,255,255,.6);
+    margin-top:1px;
+  }
+
+  /* ---------- Guía tab: accordion ---------- */
+  .guia-scroll{ flex:1; overflow-y:auto; padding:16px; }
+  .guia-intro{
+    background:var(--white);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:14px 16px;
+    margin-bottom:16px;
+  }
+  .guia-intro-title{ font-family:var(--font-display); font-size:16px; font-weight:700; color:var(--navy); }
+  .guia-intro-body{ font-size:12px; color:var(--muted); margin-top:6px; line-height:1.55; }
+
+  .accordion{ display:flex; flex-direction:column; gap:8px; }
+  .accordion-item{
+    background:var(--white);
+    border:1px solid var(--line);
+    border-radius:12px;
+    overflow:hidden;
+  }
+  .accordion-head{
+    display:flex;
+    align-items:center;
+    gap:11px;
+    padding:12px 14px;
+    cursor:pointer;
+    user-select:none;
+  }
+  .accordion-icon{
+    width:30px;height:30px;
+    border-radius:9px;
+    flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .accordion-icon svg{ width:15px;height:15px; }
+  .accordion-title{ font-size:12.8px; font-weight:700; color:var(--darktext); flex:1; }
+  .accordion-chevron{
+    width:9px;height:9px;
+    border-right:1.6px solid var(--muted);
+    border-bottom:1.6px solid var(--muted);
+    transform:rotate(-45deg);
+    transition:transform .25s ease;
+    margin-top:-3px;
+    flex-shrink:0;
+  }
+  .accordion-item.open .accordion-chevron{ transform:rotate(45deg); margin-top:3px; }
+  .accordion-body{
+    max-height:0;
+    overflow:hidden;
+    transition:max-height .3s ease;
+  }
+  .accordion-item.open .accordion-body{ max-height:600px; }
+  .accordion-body-inner{
+    padding:0 14px 15px 55px;
+    font-size:12px;
+    color:var(--muted);
+    line-height:1.55;
+  }
+  .accordion-body-inner p{ margin:0 0 8px; }
+  .accordion-body-inner p:last-child{ margin-bottom:0; }
+  .accordion-body-inner ul{ margin:0 0 8px; padding-left:16px; }
+  .accordion-body-inner li{ margin-bottom:4px; }
+  .accordion-body-inner b{ color:var(--darktext); }
+  .mini-table{ width:100%; border-collapse:collapse; margin-top:4px; }
+  .mini-table td{ padding:4px 0; font-size:11.5px; vertical-align:top; border-bottom:1px solid var(--line); }
+  .mini-table tr:last-child td{ border-bottom:none; }
+  .mini-table td:first-child{ font-weight:700; color:var(--darktext); white-space:nowrap; padding-right:10px; }
+  .guia-link{
+    display:inline-block;
+    margin-top:4px;
+    background:none;
+    border:none;
+    padding:0;
+    font-family:var(--font-body);
+    font-size:12px;
+    font-weight:700;
+    color:var(--teal);
+    cursor:pointer;
+    text-align:left;
+  }
+  .guia-link:active{ opacity:.7; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div id="app">
+
+    <!-- ===== TOP BAR ===== -->
+    <div class="topbar">
+      <div class="topbar-row">
+        <div>
+          <div class="wordmark">SocialLevel</div>
+          <div class="wordmark-sub">Resuelve problemas, no solo converses</div>
+          <span class="conn-badge" id="connBadge"></span>
+        </div>
+        <div class="level-chip" id="levelChip">
+          <span class="dot"></span>
+          Nivel <b id="chipLevel">3</b>
+        </div>
+      </div>
+      <div class="phase-strip">
+        <div class="phase-strip-top">
+          <span id="cycleLabel">Ciclo #14 · Arena de Problemas</span>
+          <span id="phaseTimer">32h 00m restantes</span>
+        </div>
+        <div class="phase-name" id="phaseName">Exploración</div>
+        <div class="phase-track" id="phaseTrack"></div>
+        <div class="phase-labels" id="phaseLabels"></div>
+        <div class="phase-objective" id="phaseObjective"></div>
+      </div>
+    </div>
+
+    <!-- ===== ARENA TAB ===== -->
+    <div class="tabpanel visible" id="tab-arena">
+      <div class="problem-card" id="problemCard">
+        <div class="problem-eyebrow">PROBLEMA DEL CICLO</div>
+        <div class="problem-title" id="problemTitle">Reducir el tiempo de onboarding de 14 a 5 días sin sumar personal</div>
+        <div class="problem-brief" id="problemBrief">
+          El equipo de operaciones tarda en promedio 14 días en dejar productivo a un cliente nuevo.
+          El objetivo del ciclo es proponer y refinar un enfoque realista para bajar ese tiempo a 5 días,
+          sin contratar personal adicional. Se valoran propuestas que consideren automatización,
+          documentación y reordenamiento de pasos existentes.
+        </div>
+        <button class="problem-toggle" id="problemToggle">Ver contexto completo</button>
+        <div class="criteria-row" id="criteriaRow">
+          <span class="criteria-pill" data-crit="relevancia">Relevancia</span>
+          <span class="criteria-pill" data-crit="originalidad">Originalidad</span>
+          <span class="criteria-pill" data-crit="traccion">Tracción</span>
+          <span class="criteria-pill" data-crit="fundamentacion">Fundamentación</span>
+          <span class="criteria-pill" data-crit="claridad">Claridad</span>
+        </div>
+      </div>
+
+      <div class="chat-scroll" id="chatScroll"></div>
+
+      <div class="level-preview-toggle">
+        <label><input type="checkbox" id="lowLevelPreview"> Vista previa: simular Nivel 1 (sin cambiar tu progreso real)</label>
+      </div>
+
+      <div class="demo-controls" id="demoControls">
+        <button class="demo-btn" id="btnResetCycle">Reiniciar ciclo</button>
+        <button class="demo-btn primary" id="btnAdvancePhase">Avanzar fase →</button>
+      </div>
+
+      <div class="composer-wrap">
+        <div class="reply-banner" id="replyBanner">
+          <span id="replyBannerText">Respondiendo a…</span>
+          <button id="cancelReply">✕</button>
+        </div>
+        <div class="composer" id="composerNormal">
+          <textarea id="composerInput" rows="1" placeholder="Escribe tu aporte al problema…"></textarea>
+          <button class="send-btn" id="sendBtn" aria-label="Enviar">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 11L21 3L13 21L11 13L3 11Z" stroke="white" stroke-width="2" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div class="locked-composer" id="composerLocked" style="display:none">
+          <div class="locked-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          </div>
+          <div class="locked-text">
+            <b id="lockedTitle">Se desbloquea en Nivel 3 · Colaborador</b>
+            <span id="lockedSub">Te faltan 145 XP para participar en esta fase</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PERFIL TAB ===== -->
+    <div class="tabpanel" id="tab-perfil">
+      <div class="perfil-scroll">
+        <div class="level-card" id="levelCard">
+          <div class="level-card-top">
+            <div>
+              <div class="level-card-title">Tu nivel actual</div>
+              <div class="level-num" id="profLevel">3</div>
+              <div class="level-card-tier" id="profTierName">Tramo: Colaboración</div>
+            </div>
+            <div class="level-badge" id="profLevelName">Colaborador</div>
+          </div>
+          <div class="xp-track"><div class="xp-fill" id="xpFill" style="width:40%"></div></div>
+          <div class="xp-label" id="xpLabel">240 / 600 XP para Nivel 4</div>
+        </div>
+
+        <div class="section-title">Perfil de contribución</div>
+        <div class="role-bars" id="roleBars"></div>
+
+        <div class="section-title">Permisos por nivel</div>
+        <div class="perm-list" id="permList"></div>
+
+        <div class="section-title">Portafolio de resoluciones</div>
+        <div id="portfolioList"></div>
+      </div>
+    </div>
+
+    <!-- ===== GUÍA TAB ===== -->
+    <div class="tabpanel" id="tab-guia">
+      <div class="guia-scroll">
+        <div class="guia-intro">
+          <div class="guia-intro-title">Guía de SocialLevel</div>
+          <div class="guia-intro-body">Todo lo que necesitas saber para participar — toca cualquier sección para abrirla. Puedes volver aquí cuando quieras, no solo la primera vez.</div>
+        </div>
+
+        <div class="accordion" id="guiaAccordion">
+
+          <div class="accordion-item">
+            <div class="accordion-head">
+              <div class="accordion-icon" style="background:var(--teal)"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
+              <div class="accordion-title">¿Qué es SocialLevel?</div>
+              <div class="accordion-chevron"></div>
+            </div>
+            <div class="accordion-body"><div class="accordion-body-inner">
+              <p>Una comunidad de trabajo donde, en vez de conversar sin rumbo, tu equipo recibe un problema real cada 48 horas y lo resuelve en conjunto.</p>
+              <p>Una IA evalúa el <b>valor</b> de cada aporte que haces — no cuánto escribes. Con el tiempo, eso se traduce en nivel, más autonomía y un portafolio que demuestra lo que sabes hacer.</p>
+            </div></div>
+          </div>
+
+          <div class="accordion-item">
+            <div class="accordion-head">
+              <div class="accordion-icon" style="background:var(--deepblue)"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg></div>
+              <div class="accordion-title">El ciclo de 48 horas</div>
+              <div class="accordion-chevron"></div>
+            </div>
+            <div class="accordion-body"><div class="accordion-body-inner">
+              <table class="mini-table">
+                <tr><td>Apertura</td><td>Hora 0 — se publica el problema y el criterio de éxito.</td></tr>
+                <tr><td>Exploración</td><td>Horas 0–16 — propones ideas y haces preguntas.</td></tr>
+                <tr><td>Construcción</td><td>Horas 16–36 — refinas y combinas las mejores ideas.</td></tr>
+                <tr><td>Cierre</td><td>Horas 36–48 — se resume la solución colectiva.</td></tr>
+              </table>
+            </div></div>
+          </div>
+
+          <div class="accordion-item">
+            <div class="accordion-head">
+              <div class="accordion-icon" style="background:var(--amber)"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg></div>
+              <div class="accordion-title">Cómo se evalúa tu aporte</div>
+              <div class="accordion-chevron"></div>
+            </div>
+            <div class="accordion-body"><div class="accordion-body-inner">
+              <p>Cada mensaje se mide con cinco criterios, siempre visibles junto a tu puntaje:</p>
+              <ul>
+                <li><b>Relevancia</b> — ¿responde al problema?</li>
+                <li><b>Originalidad</b> — ¿aporta algo nuevo?</li>
+                <li><b>Tracción</b> — ¿otros construyeron sobre tu idea?</li>
+                <li><b>Fundamentación</b> — ¿hay razonamiento o evidencia?</li>
+                <li><b>Claridad</b> — ¿se entiende sin esfuerzo?</li>
+              </ul>
+            </div></div>
+          </div>
+
+          <div class="accordion-item">
+            <div class="accordion-head">
+              <div class="accordion-icon" style="background:var(--navy)"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+              <div class="accordion-title">Los 4 roles que puedes jugar</div>
+              <div class="accordion-chevron"></div>
+            </div>
+            <div class="accordion-body"><div class="accordion-body-inner">
+              <p>Se detectan solos, según cómo participas — nadie te los asigna:</p>
+              <ul>
+                <li><b>Generador</b> — propone ideas originales.</li>
+                <li><b>Constructor</b> — mejora o combina ideas ajenas.</li>
+                <li><b>Verificador</b> — cuestiona con fundamento.</li>
+                <li><b>Sintetizador</b> — resume la discusión.</li>
+              </ul>
+              <p>Ningún rol vale más que otro — un equipo sano necesita a los cuatro.</p>
+            </div></div>
+          </div>
+
+          <div class="accordion-item">
+            <div class="accordion-head">
+              <div class="accordion-icon" style="background:#2E7D6B"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M12 2l2.9 6.3 6.9.9-5 4.8 1.2 6.9L12 17.8l-6 3.1 1.2-6.9-5-4.8 6.9-.9L12 2z"/></svg></div>
+              <div class="accordion-title">Niveles y tramos de color</div>
+              <div class="accordion-chevron"></div>
+            </div>
+            <div class="accordion-body"><div class="accordion-body-inner">
+              <p>Subes de nivel ganando experiencia (XP) proporcional a tu puntaje, del Nivel 0 al 10. Cada nivel desbloquea algo concreto.</p>
+              <p>Los niveles se agrupan en 4 tramos, y cada tramo tiene su propio color que se refleja en tu chip de nivel, tu avatar y tu perfil:</p>
+              <table class="mini-table">
+                <tr><td>Niv. 0–2</td><td>Aprendizaje — azul grisáceo</td></tr>
+                <tr><td>Niv. 3–5</td><td>Colaboración — teal</td></tr>
+                <tr><td>Niv. 6–7</td><td>Curaduría — verde esmeralda</td></tr>
+                <tr><td>Niv. 8–10</td><td>Consejo — dorado</td></tr>
+              </table>
+              <p>Si una fase requiere un nivel que no tienes, el cuadro de texto se bloquea con una explicación clara — no te deja adivinar.</p>
+              <button class="guia-link" id="linkToPerfil">Ver la lista completa de los 11 niveles en Mi progreso →</button>
+            </div></div>
+          </div>
+
+          <div class="accordion-item">
+            <div class="accordion-head">
+              <div class="accordion-icon" style="background:var(--teal)"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M12 2 3 6v6c0 5 3.8 8.7 9 10 5.2-1.3 9-5 9-10V6l-9-4z"/></svg></div>
+              <div class="accordion-title">Gobernanza de tu comunidad</div>
+              <div class="accordion-chevron"></div>
+            </div>
+            <div class="accordion-body"><div class="accordion-body-inner">
+              <p>A medida que tu comunidad crece, la forma de tomar decisiones evoluciona sola:</p>
+              <table class="mini-table">
+                <tr><td>&lt; 50</td><td>Sin votaciones — participación normal.</td></tr>
+                <tr><td>50–500</td><td>Votas directo o delegas tu voto.</td></tr>
+                <tr><td>500–5k</td><td>Consejo rotativo valida cada ciclo.</td></tr>
+                <tr><td>&gt; 5k</td><td>Jurado de Apelación independiente.</td></tr>
+              </table>
+            </div></div>
+          </div>
+
+          <div class="accordion-item">
+            <div class="accordion-head">
+              <div class="accordion-icon" style="background:var(--muted)"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2.5 2-2.5 3.5"/><path d="M12 17h.01"/></svg></div>
+              <div class="accordion-title">Preguntas frecuentes</div>
+              <div class="accordion-chevron"></div>
+            </div>
+            <div class="accordion-body"><div class="accordion-body-inner">
+              <p><b>¿Qué pasa si no participo en un ciclo?</b><br>Tu nivel se calcula sobre varios ciclos recientes — faltar a uno no te penaliza de inmediato.</p>
+              <p><b>¿Puedo perder puntos por escribir mucho?</b><br>No directamente, pero escribir sin aportar valor no sube tu puntaje.</p>
+              <p><b>¿Tengo que estar disponible las 48 horas?</b><br>No. Construir sobre una idea tarde cuenta igual que proponerla temprano.</p>
+              <p><b>¿Quién publica los problemas?</b><br>Al inicio tu organización; desde Nivel 6 tú también puedes proponerlos.</p>
+              <p><b>¿Qué pasa si no estoy de acuerdo con un puntaje?</b><br>El desglose por criterio siempre está visible junto a tu mensaje. Desde Nivel 4 además puedes presentar objeciones formales en la fase de Verificación.</p>
+              <p><b>¿Mi portafolio es público?</b><br>Depende de la configuración de tu comunidad. En cualquier caso es tuyo — pensado para que lo muestres fuera de la plataforma si así lo decides.</p>
+            </div></div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== BOTTOM NAV ===== -->
+    <div class="bottomnav">
+      <button class="navbtn active" id="navArena">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        Arena
+      </button>
+      <button class="navbtn" id="navPerfil">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6.5 8-6.5s8 2.5 8 6.5"/></svg>
+        Mi progreso
+      </button>
+      <button class="navbtn" id="navGuia">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Guía
+      </button>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <div class="sheet-backdrop" id="sheetBackdrop">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <h3 id="sheetTitle">Nivel 3 · Colaborador</h3>
+        <p id="sheetBody"></p>
+      </div>
+    </div>
+
+    <div class="welcome-backdrop" id="welcomeBackdrop">
+      <div class="welcome-card">
+        <div class="welcome-icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        </div>
+        <h2>Bienvenido a la Arena de Problemas</h2>
+        <p>Cada 48 horas tu equipo recibe un problema real. Así funciona:</p>
+        <div class="welcome-steps">
+          <div class="welcome-step"><span class="num">1</span><span>Aporta ideas, cuestiona o construye sobre lo que otros proponen.</span></div>
+          <div class="welcome-step"><span class="num">2</span><span>Una IA evalúa el valor de cada aporte — no cuánto escribes.</span></div>
+          <div class="welcome-step"><span class="num">3</span><span>Subes de nivel y desbloqueas más autonomía en la comunidad.</span></div>
+        </div>
+        <button class="welcome-cta" id="welcomeCta">Entendido, vamos</button>
+      </div>
+    </div>
+
+    <div class="tier-overlay" id="tierOverlay">
+      <div class="tier-card">
+        <div class="tier-ring">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M12 2l2.9 6.3 6.9.9-5 4.8 1.2 6.9L12 17.8l-6 3.1 1.2-6.9-5-4.8 6.9-.9L12 2z"/></svg>
+        </div>
+        <div class="tier-eyebrow">NUEVO TRAMO DESBLOQUEADO</div>
+        <div class="tier-title" id="tierTitle">Colaboración</div>
+        <div class="tier-sub" id="tierSub">Tu interfaz cambia de color para reflejar tu progreso — así se nota tu nivel de un vistazo.</div>
+        <button class="tier-dismiss" id="tierDismiss">Continuar</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------------------------------------------------------------
+  // DATA
+  // ---------------------------------------------------------------
+  var PHASES = ["Apertura","Exploración","Construcción","Cierre y síntesis"];
+  var PHASE_HOURS = [0, 16, 20, 12]; // duración de cada fase dentro de las 48h
+  var TOTAL_HOURS = 48;
+  // Nivel mínimo requerido para participar activamente (enviar aportes) en cada fase.
+  // Coincide con la tabla de permisos: Nivel 3 desbloquea la fase de Construcción.
+  var PHASE_MIN_LEVEL = [0, 0, 3, 0];
+
+  // Objetivo de cada fase — se muestra al usuario y guía la evaluación.
+  var PHASE_OBJECTIVE = [
+    "Lee el problema y el criterio de éxito antes de que abra la discusión.",
+    "Objetivo: proponer ideas diversas y hacer preguntas — se premia la variedad de enfoques.",
+    "Objetivo: refinar y combinar las mejores ideas — se premia construir sobre lo que ya se dijo.",
+    "Objetivo: resumir y consolidar — se premia la claridad por encima de ideas nuevas.",
+  ];
+
+  // Pesos de la rúbrica por fase (suman 100). El mismo criterio importa
+  // distinto según el objetivo del momento: en Exploración pesa más la
+  // originalidad; en Construcción, la tracción; en Cierre, la claridad.
+  var PHASE_WEIGHTS = [
+    { relevancia:25, originalidad:20, traccion:25, fundamentacion:20, claridad:10 }, // Apertura (no aplica, referencia)
+    { relevancia:30, originalidad:30, traccion:10, fundamentacion:20, claridad:10 }, // Exploración
+    { relevancia:20, originalidad:10, traccion:35, fundamentacion:25, claridad:10 }, // Construcción
+    { relevancia:20, originalidad:5,  traccion:15, fundamentacion:20, claridad:40 }, // Cierre y síntesis
+  ];
+
+  var LEVELS = [
+    { level:0, name:"Recién llegado", xp:0,   perms:"Solo puede leer la Arena y participar en la fase de Exploración." },
+    { level:1, name:"Observador",     xp:150, perms:"Puede reaccionar a los aportes de otros usuarios." },
+    { level:2, name:"Aprendiz",       xp:320, perms:"Puede publicar su primer aporte original en Exploración." },
+    { level:3, name:"Colaborador",    xp:520, perms:"Desbloquea la fase de Construcción: puede refinar y combinar ideas ajenas." },
+    { level:4, name:"Colaborador+",   xp:760, perms:"Puede presentar objeciones formales en la fase de Verificación." },
+    { level:5, name:"Referente",      xp:1040,perms:"Sus síntesis pueden marcarse como \"resumen sugerido\" del ciclo." },
+    { level:6, name:"Curador",        xp:1360,perms:"Puede proponer nuevos problemas para futuros ciclos." },
+    { level:7, name:"Curador+",       xp:1720,perms:"Puede editar el criterio de éxito de un problema antes de publicarlo." },
+    { level:8, name:"Consejero",      xp:2120,perms:"Forma parte del Consejo de Síntesis: valida el cierre de cada ciclo." },
+    { level:9, name:"Consejero sénior",xp:2560,perms:"Puede convocar ciclos extraordinarios fuera del calendario regular." },
+    { level:10,name:"Gobernador",     xp:3050,perms:"Máxima autoridad: define reglas de gobernanza del espacio." },
+  ];
+
+  var ROLE_META = {
+    generador:    { label:"Generador",    cls:"role-generador" },
+    constructor:  { label:"Constructor",  cls:"role-constructor" },
+    verificador:  { label:"Verificador",  cls:"role-verificador" },
+    sintetizador: { label:"Sintetizador", cls:"role-sintetizador" },
+  };
+
+  // ---------------------------------------------------------------
+  // TIERS DE NIVEL — cada tramo tiene su propio color de acento.
+  // Se aplica en puntos concretos (chip, avatar, tarjeta de perfil),
+  // nunca en toda la interfaz, para no romper la identidad de marca.
+  // ---------------------------------------------------------------
+  var TIERS = [
+    { min:0,  max:2,  name:"Aprendizaje",  c1:"#5C7A99", c2:"#3E5A78", glow:"rgba(92,122,153,.45)" },
+    { min:3,  max:5,  name:"Colaboración", c1:"#1C7293", c2:"#065A82", glow:"rgba(28,114,147,.45)" },
+    { min:6,  max:7,  name:"Curaduría",    c1:"#2E7D6B", c2:"#175E4F", glow:"rgba(46,125,107,.45)" },
+    { min:8,  max:10, name:"Consejo",      c1:"#D9A857", c2:"#B9793B", glow:"rgba(217,168,87,.55)" },
+  ];
+  function tierFor(level){
+    for (var i=0;i<TIERS.length;i++){ if (level>=TIERS[i].min && level<=TIERS[i].max) return TIERS[i]; }
+    return TIERS[0];
+  }
+  function tierIndexFor(level){
+    for (var i=0;i<TIERS.length;i++){ if (level>=TIERS[i].min && level<=TIERS[i].max) return i; }
+    return 0;
+  }
+
+  var CAST = ["Ana R.", "Luis M.", "Priya K.", "Diego F.", "Emma T."];
+  var AVATAR_COLORS = ["#065A82", "#1C7293", "#B9793B", "#21295C", "#4B7A8C", "#8C5A2B"];
+  function avatarColor(name){
+    var hash = 0;
+    for (var i=0;i<name.length;i++){ hash = (hash*31 + name.charCodeAt(i)) % AVATAR_COLORS.length; }
+    return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+  }
+  function initials(name){
+    var parts = name.trim().split(/\s+/);
+    var a = parts[0] ? parts[0][0] : "";
+    var b = parts[1] ? parts[1][0] : "";
+    return (a+b).toUpperCase();
+  }
+
+  // scripted seed messages, revealed as the demo phase advances
+  var SEED = [
+    { phase:0, author:"Ana R.", text:"Abrimos el ciclo. Recuerden: el criterio de éxito es bajar de 14 a 5 días sin sumar personal.", role:"sintetizador", system:true },
+    { phase:1, author:"Ana R.", text:"Propongo dividir el onboarding en 3 bloques paralelos en vez de secuenciales: legal, técnico y de producto.", role:"generador" },
+    { phase:1, author:"Luis M.", text:"¿Tenemos datos de cuánto tiempo se pierde específicamente en la parte legal hoy?", role:"verificador" },
+    { phase:1, author:"Priya K.", text:"Otra opción: automatizar el 60% de los checklists actuales con un formulario que ya dispare las siguientes tareas.", role:"generador" },
+    { phase:2, author:"Diego F.", text:"Sumando a la idea de Ana: si los 3 bloques corren en paralelo, el cuello de botella pasa a ser la firma legal. Ahí es donde Priya podría automatizar primero.", role:"constructor", replyToText:"Propongo dividir el onboarding en 3 bloques paralelos…" },
+    { phase:2, author:"Emma T.", text:"En mi experiencia con 40 clientes, la firma legal toma en promedio 4 de los 14 días. Automatizarla sola ya nos acerca bastante a la meta.", role:"verificador" },
+  ];
+
+  // ---------------------------------------------------------------
+  // CONEXIÓN AL BACKEND — si el servidor responde, la app usa evaluación
+  // real (DeepSeek); si no, cae de vuelta a la simulación local para que
+  // el prototipo siga funcionando aunque el backend esté apagado o dormido.
+  // ---------------------------------------------------------------
+  // Con el backend desplegado en Render (o cualquier servidor con URL pública
+  // fija), UNA SOLA dirección funciona para todos los casos: el navegador de
+  // tu PC, el emulador de Android, un teléfono físico en cualquier red, o el
+  // teléfono de cualquier otro usuario — ya no hace falta distinguir entre
+  // localhost / 10.0.2.2 / IP local, porque una URL pública es la misma
+  // dirección se mire desde donde se mire.
+  //
+  // Reemplaza esta URL por la que te dé Render al terminar el despliegue
+  // (algo como "https://sociallevel-backend-xxxx.onrender.com"):
+  var PUBLIC_BACKEND_URL = "https://sociallevel-backend-zjts.onrender.com";
+
+  // Para seguir probando en tu propia PC sin desplegar nada (modo local),
+  // cambia la línea de abajo a false.
+  var USE_PUBLIC_BACKEND = true;
+
+  var API_BASE = USE_PUBLIC_BACKEND
+    ? PUBLIC_BACKEND_URL + "/api"
+    : "http://localhost:3000/api";
+  var DEMO_USER_ID = 1; // el usuario "Ana Restrepo" que ya creaste por curl
+
+  // ---------------------------------------------------------------
+  // STATE (in-memory only — resets on reload, by design for this demo)
+  // ---------------------------------------------------------------
+  var state = {
+    phaseIndex: 1,
+    cycleNumber: 14,
+    hoursElapsed: 18,
+    messages: [],
+    replyTarget: null,
+    userXP: 520,
+    roleCounts: { generador: 6, constructor: 9, verificador: 3, sintetizador: 2 },
+    portfolio: [
+      { title:"Bajar tasa de rebote del checkout móvil", role:"Constructor", score:88, cycle:13 },
+      { title:"Rediseñar el flujo de bienvenida de nuevos usuarios", role:"Generador", score:76, cycle:11 },
+      { title:"Reducir tickets duplicados de soporte", role:"Verificador", score:91, cycle:9 },
+    ],
+    previewLowLevel: false,
+    connected: false,   // true si el backend real respondió al cargar
+    cycleId: null,      // id real del ciclo en el backend, cuando está conectado
+  };
+
+  // ---------------------------------------------------------------
+  // DOM refs
+  // ---------------------------------------------------------------
+  var $ = function(id){ return document.getElementById(id); };
+  var chatScroll = $("chatScroll");
+  var phaseTrack = $("phaseTrack");
+  var phaseName = $("phaseName");
+  var phaseTimer = $("phaseTimer");
+  var cycleLabel = $("cycleLabel");
+  var composerInput = $("composerInput");
+  var sendBtn = $("sendBtn");
+  var replyBanner = $("replyBanner");
+  var replyBannerText = $("replyBannerText");
+
+  // ---------------------------------------------------------------
+  // LEVEL HELPERS
+  // ---------------------------------------------------------------
+  function currentLevelInfo(xp){
+    var lvl = LEVELS[0];
+    for (var i=0;i<LEVELS.length;i++){ if (xp >= LEVELS[i].xp) lvl = LEVELS[i]; }
+    var next = LEVELS[Math.min(lvl.level+1, 10)];
+    return { lvl:lvl, next: (lvl.level<10?next:null) };
+  }
+
+  // ---------------------------------------------------------------
+  // GATING POR NIVEL — la interfaz se adapta según lo que el usuario tiene desbloqueado
+  // ---------------------------------------------------------------
+  function realLevel(){ return currentLevelInfo(state.userXP).lvl.level; }
+  function effectiveLevel(){ return state.previewLowLevel ? 1 : realLevel(); }
+  function levelInfoByLevel(lvl){
+    for (var i=LEVELS.length-1;i>=0;i--){ if (LEVELS[i].level===lvl) return LEVELS[i]; }
+    return LEVELS[0];
+  }
+
+  function updateComposerGate(){
+    var required = PHASE_MIN_LEVEL[state.phaseIndex];
+    var eff = effectiveLevel();
+    var locked = eff < required;
+    $("composerNormal").style.display = locked ? "none" : "flex";
+    $("composerLocked").style.display = locked ? "flex" : "none";
+    sendBtn.disabled = locked;
+    composerInput.disabled = locked;
+
+    if (locked){
+      var reqInfo = levelInfoByLevel(required);
+      if (state.previewLowLevel){
+        $("lockedTitle").textContent = "Vista previa: así se ve para un usuario de Nivel 1";
+        $("lockedSub").textContent = "Necesita llegar a Nivel " + required + " · " + reqInfo.name + " para participar en " + PHASES[state.phaseIndex] + ".";
+      } else {
+        var faltan = Math.max(0, reqInfo.xp - state.userXP);
+        $("lockedTitle").textContent = "Se desbloquea en Nivel " + required + " · " + reqInfo.name;
+        $("lockedSub").textContent = "Te faltan " + faltan + " XP para participar en la fase de " + PHASES[state.phaseIndex] + ".";
+      }
+    }
+
+    renderPhaseLabels();
+  }
+
+  function renderPhaseLabels(){
+    var wrap = $("phaseLabels");
+    if (!wrap) return;
+    var eff = effectiveLevel();
+    wrap.innerHTML = "";
+    PHASES.forEach(function(name, i){
+      var item = document.createElement("span");
+      item.className = "phase-label-item";
+      var locked = eff < PHASE_MIN_LEVEL[i];
+      item.innerHTML = name + (locked ? ' <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>' : "");
+      wrap.appendChild(item);
+    });
+  }
+
+  $("lowLevelPreview").addEventListener("change", function(e){
+    state.previewLowLevel = e.target.checked;
+    updateComposerGate();
+    showToast(
+      state.previewLowLevel ? "Vista previa activada" : "Vista previa desactivada",
+      state.previewLowLevel ? "Viendo la Arena como un usuario de Nivel 1" : "Volviste a tu nivel real"
+    );
+  });
+
+  function applyTierStyle(level){
+    var tier = tierFor(level);
+    var root = document.getElementById("app");
+    root.style.setProperty("--tier-c1", tier.c1);
+    root.style.setProperty("--tier-c2", tier.c2);
+    root.style.setProperty("--tier-glow", tier.glow);
+    $("profTierName").textContent = "Tramo: " + tier.name;
+  }
+
+  function renderLevelChip(){
+    var info = currentLevelInfo(state.userXP);
+    $("chipLevel").textContent = info.lvl.level;
+    $("profLevel").textContent = info.lvl.level;
+    $("profLevelName").textContent = info.lvl.name;
+    applyTierStyle(info.lvl.level);
+    if (info.next){
+      var span = info.next.xp - info.lvl.xp;
+      var into = state.userXP - info.lvl.xp;
+      var pct = Math.max(4, Math.min(100, Math.round((into/span)*100)));
+      $("xpFill").style.width = pct + "%";
+      $("xpLabel").textContent = state.userXP + " / " + info.next.xp + " XP para Nivel " + info.next.level;
+    } else {
+      $("xpFill").style.width = "100%";
+      $("xpLabel").textContent = "Nivel máximo alcanzado — Gobernador";
+    }
+  }
+
+  function renderPermissions(){
+    var info = currentLevelInfo(state.userXP);
+    var list = $("permList");
+    list.innerHTML = "";
+    LEVELS.forEach(function(l){
+      var unlocked = l.level <= info.lvl.level;
+      var item = document.createElement("div");
+      item.className = "perm-item " + (unlocked?"unlocked":"locked");
+      item.innerHTML =
+        '<div class="perm-check">' + (unlocked ? "✓" : l.level) + '</div>' +
+        '<div class="perm-text"><b>Nivel ' + l.level + ' · ' + l.name + '</b><span>' + l.perms + '</span></div>';
+      list.appendChild(item);
+    });
+  }
+
+  function renderRoleBars(){
+    var wrap = $("roleBars");
+    wrap.innerHTML = "";
+    var total = 0;
+    Object.keys(state.roleCounts).forEach(function(k){ total += state.roleCounts[k]; });
+    var colors = { generador:"var(--teal)", constructor:"var(--deepblue)", verificador:"var(--amber)", sintetizador:"var(--navy)" };
+    Object.keys(ROLE_META).forEach(function(k){
+      var count = state.roleCounts[k] || 0;
+      var pct = total ? Math.round((count/total)*100) : 0;
+      var row = document.createElement("div");
+      row.className = "role-bar-row";
+      row.innerHTML =
+        '<div class="role-bar-label">' + ROLE_META[k].label + '</div>' +
+        '<div class="role-bar-track"><div class="role-bar-fill" style="width:' + pct + '%;background:' + colors[k] + '"></div></div>' +
+        '<div class="role-bar-val">' + pct + '%</div>';
+      wrap.appendChild(row);
+    });
+  }
+
+  function renderPortfolio(){
+    var wrap = $("portfolioList");
+    wrap.innerHTML = "";
+    if (!state.portfolio.length){
+      wrap.innerHTML = '<div class="empty-note">Aún no has cerrado ningún ciclo. Tu primer resultado aparecerá aquí.</div>';
+      return;
+    }
+    state.portfolio.forEach(function(p){
+      var item = document.createElement("div");
+      item.className = "portfolio-item";
+      item.innerHTML =
+        '<div class="portfolio-item-top"><div class="portfolio-title">' + p.title + '</div><div class="portfolio-score">' + p.score + '/100</div></div>' +
+        '<div class="portfolio-meta">Ciclo #' + p.cycle + ' · Rol dominante: ' + p.role + '</div>';
+      wrap.appendChild(item);
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // PHASE / TIMER RENDER
+  // ---------------------------------------------------------------
+  function phaseBoundaries(){
+    var b = [0];
+    for (var i=0;i<PHASE_HOURS.length;i++) b.push(b[i]+PHASE_HOURS[i]);
+    return b; // e.g. [0,0,16,36,48]
+  }
+
+  function renderPhase(){
+    var b = phaseBoundaries();
+    phaseTrack.innerHTML = "";
+    for (var i=0;i<PHASES.length;i++){
+      var seg = document.createElement("div");
+      var width = ((b[i+1]-b[i]) / TOTAL_HOURS) * 100;
+      seg.className = "phase-seg " + (i < state.phaseIndex ? "done" : i === state.phaseIndex ? "active" : "todo");
+      seg.style.width = width + "%";
+      phaseTrack.appendChild(seg);
+    }
+    phaseName.textContent = PHASES[state.phaseIndex];
+    var remaining = Math.max(0, TOTAL_HOURS - state.hoursElapsed);
+    var h = Math.floor(remaining), m = Math.round((remaining-h)*60);
+    phaseTimer.textContent = h + "h " + (m<10?"0":"") + m + "m restantes";
+    cycleLabel.textContent = "Ciclo #" + state.cycleNumber + " · Arena de Problemas";
+
+    var advanceBtn = $("btnAdvancePhase");
+    if (state.phaseIndex >= PHASES.length-1){
+      advanceBtn.textContent = "Cerrar ciclo y ver síntesis";
+    } else {
+      advanceBtn.textContent = "Avanzar fase →";
+    }
+
+    $("phaseObjective").textContent = PHASE_OBJECTIVE[state.phaseIndex];
+    renderCriteriaEmphasis();
+    updateComposerGate();
+  }
+
+  function renderCriteriaEmphasis(){
+    var w = PHASE_WEIGHTS[state.phaseIndex] || PHASE_WEIGHTS[1];
+    var sorted = Object.keys(w).sort(function(a,b){ return w[b]-w[a]; });
+    var top2 = sorted.slice(0,2);
+    document.querySelectorAll("#criteriaRow .criteria-pill").forEach(function(pill){
+      var crit = pill.getAttribute("data-crit");
+      pill.classList.toggle("emphasis", top2.indexOf(crit) > -1);
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // SCORING HEURISTIC (client-side simulation of what the IA batch job does)
+  // ---------------------------------------------------------------
+  function detectRole(text, hasReply){
+    var t = text.toLowerCase();
+    if (/resum|en conclusi|en s[ií]ntesis|para cerrar/.test(t)) return "sintetizador";
+    if (/\?|sin embargo|riesgo|pero |no estoy seguro|dato/.test(t) && !hasReply) return "verificador";
+    if (hasReply || /sumando|de acuerdo|combinando|construyendo sobre/.test(t)) return "constructor";
+    return "generador";
+  }
+
+  function scoreMessage(text, hasReply, phaseIndex){
+    var w = PHASE_WEIGHTS[phaseIndex] || PHASE_WEIGHTS[1];
+    var len = text.trim().split(/\s+/).length;
+    var relevancia = clamp(62 + Math.min(len,40)*0.6, 55, 96);
+    var originalidad = clamp(58 + (hasReply?10:20) + (/%|\d/.test(text)?6:0), 50, 95);
+    var traccion = hasReply ? 78 : 55; // replies visibly build on others -> counted as traction generator too
+    var fundamentacion = clamp(50 + (/%|\d|por ejemplo|datos|promedio/.test(text.toLowerCase())?28:0) + Math.min(len,20), 45, 96);
+    var claridad = clamp(95 - Math.max(0, len-45)*1.3, 55, 96);
+    var total = Math.round(
+      relevancia*(w.relevancia/100) + originalidad*(w.originalidad/100) +
+      traccion*(w.traccion/100) + fundamentacion*(w.fundamentacion/100) +
+      claridad*(w.claridad/100)
+    );
+    return {
+      relevancia: Math.round(relevancia), originalidad: Math.round(originalidad),
+      traccion: Math.round(traccion), fundamentacion: Math.round(fundamentacion),
+      claridad: Math.round(claridad), total: total
+    };
+  }
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+
+  // ---------------------------------------------------------------
+  // CHAT RENDER
+  // ---------------------------------------------------------------
+  function addMessage(msg){
+    state.messages.push(msg);
+    renderChat();
+  }
+
+  function renderChat(){
+    chatScroll.innerHTML = "";
+    var visible = state.messages.filter(function(m){ return m.phase <= state.phaseIndex; });
+    visible.forEach(function(m){ chatScroll.appendChild(buildMessageEl(m)); });
+    // phase transition note
+    var note = document.createElement("div");
+    note.className = "system-note";
+    note.textContent = state.phaseIndex >= PHASES.length-1
+      ? "Fase de cierre: revisa y refina antes de que se sintetice el ciclo."
+      : "Estás en la fase de " + PHASES[state.phaseIndex] + ".";
+    chatScroll.appendChild(note);
+    chatScroll.scrollTop = chatScroll.scrollHeight;
+  }
+
+  function buildMessageEl(m){
+    var row = document.createElement("div");
+    row.className = "msg-row" + (m.isUser ? " mine" : "");
+
+    var avatar = document.createElement("div");
+    avatar.className = "avatar" + (m.isUser ? " mine-ring" : "");
+    var avName = m.isUser ? "Tú" : m.author;
+    avatar.style.background = m.isUser ? "var(--tier-c1, var(--teal))" : avatarColor(m.author);
+    avatar.textContent = m.isUser ? "Tú" : initials(m.author);
+    if (m.isUser){ avatar.style.fontSize = "9.5px"; }
+    row.appendChild(avatar);
+
+    var col = document.createElement("div");
+    col.className = "msg-col";
+
+    var wrap = document.createElement("div");
+    wrap.className = "msg" + (m.isUser ? " mine" : "");
+
+    var meta = document.createElement("div");
+    meta.className = "msg-meta";
+    var roleMeta = ROLE_META[m.role] || ROLE_META.generador;
+    var roleTagHtml = m.evaluating
+      ? '<span class="role-tag" style="background:var(--offwhite);color:var(--muted);border:1px dashed var(--line)">Evaluando…</span>'
+      : m.evalError
+      ? '<span class="role-tag" style="background:var(--amber-bg);color:var(--amber)">Sin evaluar</span>'
+      : '<span class="role-tag ' + roleMeta.cls + '">' + roleMeta.label + '</span>';
+    meta.innerHTML =
+      (m.isUser ? "" : '<span class="msg-author">' + m.author + '</span>') +
+      roleTagHtml +
+      (m.isUser ? '<span class="msg-author">Tú</span>' : "");
+    wrap.appendChild(meta);
+
+    if (m.replyToText){
+      var ref = document.createElement("div");
+      ref.className = "reply-ref";
+      ref.textContent = "↳ " + m.replyToText.slice(0,60) + (m.replyToText.length>60?"…":"");
+      wrap.appendChild(ref);
+    }
+
+    var bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = m.text;
+    wrap.appendChild(bubble);
+
+    if (m.evaluating){
+      var ev = document.createElement("div");
+      ev.className = "evaluating-chip";
+      ev.innerHTML = '<span class="evaluating-dots"><span></span><span></span><span></span></span> La IA está evaluando tu aporte…';
+      wrap.appendChild(ev);
+    } else if (m.evalError){
+      var errEl = document.createElement("div");
+      errEl.className = "evaluating-chip";
+      errEl.style.color = "var(--amber)";
+      errEl.style.borderColor = "var(--amber-bg)";
+      errEl.style.background = "var(--amber-bg)";
+      errEl.textContent = "⚠ " + m.evalError;
+      wrap.appendChild(errEl);
+    } else if (m.scores){
+      var sl = document.createElement("div");
+      sl.className = "score-line" + (m.justScored ? " reveal" : "");
+      sl.innerHTML =
+        '<span class="score-chip">Relev. ' + m.scores.relevancia + '</span>' +
+        '<span class="score-chip">Orig. ' + m.scores.originalidad + '</span>' +
+        '<span class="score-chip">Tracción ' + m.scores.traccion + '</span>' +
+        '<span class="score-chip total">Total ' + m.scores.total + '</span>';
+      wrap.appendChild(sl);
+    }
+
+    if (!m.isUser && !m.system){
+      var replyBtn = document.createElement("button");
+      replyBtn.className = "reply-hint";
+      replyBtn.textContent = "Responder / construir sobre esto";
+      replyBtn.addEventListener("click", function(){ setReplyTarget(m); });
+      wrap.appendChild(replyBtn);
+    }
+
+    col.appendChild(wrap);
+    row.appendChild(col);
+    return row;
+  }
+
+  // ---------------------------------------------------------------
+  // COMPOSER
+  // ---------------------------------------------------------------
+  function setReplyTarget(m){
+    state.replyTarget = m;
+    replyBannerText.textContent = "Construyendo sobre: " + m.author + " — " + m.text.slice(0,42) + (m.text.length>42?"…":"");
+    replyBanner.classList.add("visible");
+    composerInput.focus();
+  }
+  function clearReplyTarget(){
+    state.replyTarget = null;
+    replyBanner.classList.remove("visible");
+  }
+  $("cancelReply").addEventListener("click", clearReplyTarget);
+
+  function applyEvaluationResult(msg, role, scores){
+    msg.evaluating = false;
+    msg.role = role;
+    msg.scores = scores;
+    msg.justScored = true;
+    renderChat();
+
+    state.roleCounts[role] = (state.roleCounts[role]||0) + 1;
+    var beforeInfo = currentLevelInfo(state.userXP);
+    state.userXP += Math.round(scores.total/4);
+    var afterInfo = currentLevelInfo(state.userXP);
+    renderLevelChip();
+    renderRoleBars();
+    updateComposerGate();
+
+    if (afterInfo.lvl.level > beforeInfo.lvl.level){
+      var beforeTier = tierIndexFor(beforeInfo.lvl.level);
+      var afterTier = tierIndexFor(afterInfo.lvl.level);
+      if (afterTier > beforeTier){
+        showTierCelebration(afterTier, afterInfo.lvl);
+      } else {
+        showToast('¡Subiste a Nivel ' + afterInfo.lvl.level + ' · ' + afterInfo.lvl.name + '!', 'Nuevo permiso: ' + afterInfo.lvl.perms, true);
+      }
+    } else {
+      showToast('Evaluado como ' + ROLE_META[role].label, 'Puntaje ' + scores.total + '/100 · +' + Math.round(scores.total/4) + ' XP');
+    }
+  }
+
+  // Sondea /api/messages/:id cada segundo hasta que el backend termine de
+  // evaluar (evaluated_at deja de ser null), o hasta agotar los intentos.
+  function pollBackendMessage(id, msg, attempt){
+    attempt = attempt || 0;
+    fetch(API_BASE + "/messages/" + id)
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (data.status === "evaluado"){
+          applyEvaluationResult(msg, data.role, {
+            relevancia: data.relevancia, originalidad: data.originalidad,
+            traccion: data.traccion, fundamentacion: data.fundamentacion,
+            claridad: data.claridad, total: data.total,
+          });
+        } else if (data.status === "error"){
+          msg.evaluating = false;
+          msg.evalError = data.justificacion || "No se pudo evaluar este mensaje.";
+          renderChat();
+          showToast("No se pudo evaluar tu aporte", data.justificacion || "Revisa la clave y el saldo de tu proveedor de IA");
+        } else if (attempt < 15){
+          setTimeout(function(){ pollBackendMessage(id, msg, attempt+1); }, 1000);
+        } else {
+          msg.evaluating = false;
+          msg.evalError = "La evaluación tardó demasiado y se canceló.";
+          renderChat();
+          showToast("La evaluación está tardando más de lo normal", "Revisa que tu clave de DeepSeek tenga saldo");
+        }
+      })
+      .catch(function(){
+        msg.evaluating = false;
+        msg.evalError = "Se perdió la conexión con el backend.";
+        renderChat();
+        showToast("Se perdió la conexión con el backend", "Revisa que node server.js siga corriendo");
+      });
+  }
+
+  function trySend(){
+    var text = composerInput.value.trim();
+    if (!text) return;
+    var hasReply = !!state.replyTarget;
+    var replyToText = hasReply ? state.replyTarget.text : null;
+    var replyToId = hasReply ? state.replyTarget.backendId : null;
+
+    var msg = {
+      phase: state.phaseIndex,
+      author: "Tú",
+      isUser: true,
+      text: text,
+      role: "generador",
+      evaluating: true,
+      replyToText: replyToText,
+    };
+    addMessage(msg);
+    composerInput.value = "";
+    autosize();
+    clearReplyTarget();
+
+    if (state.connected && state.cycleId){
+      // ---- Camino real: backend + DeepSeek ----
+      fetch(API_BASE + "/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cycle_id: state.cycleId, user_id: DEMO_USER_ID, text: text, reply_to_id: replyToId }),
+      })
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          msg.backendId = data.id;
+          pollBackendMessage(data.id, msg, 0);
+        })
+        .catch(function(){
+          showToast("No se pudo conectar al backend", "Usando evaluación simulada para este mensaje");
+          setTimeout(function(){
+            var role = detectRole(text, hasReply);
+            var scores = scoreMessage(text, hasReply, msg.phase);
+            applyEvaluationResult(msg, role, scores);
+          }, 650);
+        });
+    } else {
+      // ---- Camino simulado: sin backend disponible ----
+      setTimeout(function(){
+        var role = detectRole(text, hasReply);
+        var scores = scoreMessage(text, hasReply, msg.phase);
+        applyEvaluationResult(msg, role, scores);
+      }, 650);
+    }
+  }
+  sendBtn.addEventListener("click", trySend);
+  composerInput.addEventListener("keydown", function(e){
+    if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); trySend(); }
+  });
+  function autosize(){
+    composerInput.style.height = "auto";
+    composerInput.style.height = Math.min(90, composerInput.scrollHeight) + "px";
+  }
+  composerInput.addEventListener("input", autosize);
+
+  // ---------------------------------------------------------------
+  // TOAST
+  // ---------------------------------------------------------------
+  var toastTimer = null;
+  function showToast(titleHtml, subText, isLevelUp){
+    var t = $("toast");
+    var iconSvg = isLevelUp
+      ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M12 2l2.9 6.3 6.9.9-5 4.8 1.2 6.9L12 17.8l-6 3.1 1.2-6.9-5-4.8 6.9-.9L12 2z"/></svg>'
+      : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>';
+    t.innerHTML =
+      '<div class="toast-icon">' + iconSvg + '</div>' +
+      '<div><div class="toast-title">' + titleHtml + '</div>' +
+      (subText ? '<div class="toast-sub">' + subText + '</div>' : '') + '</div>';
+    t.classList.toggle("levelup", !!isLevelUp);
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ t.classList.remove("show"); }, isLevelUp ? 4400 : 3200);
+  }
+
+  // ---------------------------------------------------------------
+  // DEMO CONTROLS — advance phase / reset (simulates the passage of 48h)
+  // ---------------------------------------------------------------
+  $("btnAdvancePhase").addEventListener("click", function(){
+    if (state.phaseIndex < PHASES.length-1){
+      state.phaseIndex++;
+      var b = phaseBoundaries();
+      state.hoursElapsed = b[state.phaseIndex];
+      renderPhase();
+      revealSeedForPhase(state.phaseIndex);
+      showToast("Fase actualizada", PHASES[state.phaseIndex]);
+      if (state.connected && state.cycleId){
+        fetch(API_BASE + "/cycles/" + state.cycleId + "/phase", {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phase: INDEX_TO_BACKEND_PHASE[state.phaseIndex] }),
+        }).catch(function(){ /* silencioso: la fase local ya se actualizó igual */ });
+      }
+    } else {
+      closeCycle();
+    }
+  });
+
+  $("btnResetCycle").addEventListener("click", function(){
+    state.phaseIndex = 0;
+    state.hoursElapsed = 0;
+    state.messages = [];
+    clearReplyTarget();
+    renderPhase();
+    revealSeedForPhase(0);
+    showToast("Ciclo reiniciado", "Modo demostración");
+  });
+
+  function revealSeedForPhase(idx){
+    // pull in any scripted messages up to current phase not yet added
+    SEED.forEach(function(s){
+      if (s.phase <= idx){
+        var already = state.messages.some(function(m){ return m.text === s.text && m.author === s.author; });
+        if (!already){
+          state.messages.push({
+            phase: s.phase, author: s.author, isUser:false, text: s.text,
+            role: s.role, system: !!s.system,
+            replyToText: s.replyToText || null,
+          });
+        }
+      }
+    });
+    state.messages.sort(function(a,b){ return a.phase-b.phase; });
+    renderChat();
+  }
+
+  function closeCycle(){
+    var summaryTitle = "Bajar el onboarding de 14 a 5 días";
+    var userMsgs = state.messages.filter(function(m){ return m.isUser; });
+    var avg = userMsgs.length ? Math.round(userMsgs.reduce(function(a,m){return a+m.scores.total;},0)/userMsgs.length) : 70;
+    var dominant = Object.keys(state.roleCounts).reduce(function(a,b){ return state.roleCounts[a]>state.roleCounts[b]?a:b; });
+    state.portfolio.unshift({ title: summaryTitle, role: ROLE_META[dominant].label, score: avg, cycle: state.cycleNumber });
+    renderPortfolio();
+    showToast("Ciclo #" + state.cycleNumber + " cerrado", "Síntesis publicada en tu portafolio");
+
+    if (state.connected && state.cycleId){
+      fetch(API_BASE + "/cycles/" + state.cycleId + "/close", { method: "POST" }).catch(function(){});
+    }
+
+    // start next cycle in demo mode
+    state.cycleNumber++;
+    state.phaseIndex = 0;
+    state.hoursElapsed = 0;
+    state.messages = [];
+    clearReplyTarget();
+    renderPhase();
+    revealSeedForPhase(0);
+  }
+
+  // ---------------------------------------------------------------
+  // PROBLEM CARD EXPAND
+  // ---------------------------------------------------------------
+  $("problemToggle").addEventListener("click", function(){
+    var card = $("problemCard");
+    var expanded = card.classList.toggle("expanded");
+    $("problemToggle").textContent = expanded ? "Ocultar contexto" : "Ver contexto completo";
+  });
+
+  // ---------------------------------------------------------------
+  // LEVEL CHIP -> SHEET
+  // ---------------------------------------------------------------
+  $("levelChip").addEventListener("click", function(){ openSheet(); });
+  $("sheetBackdrop").addEventListener("click", function(e){
+    if (e.target === $("sheetBackdrop")) closeSheet();
+  });
+  function openSheet(){
+    var info = currentLevelInfo(state.userXP);
+    $("sheetTitle").textContent = "Nivel " + info.lvl.level + " · " + info.lvl.name;
+    $("sheetBody").textContent = info.lvl.perms + (info.next ? (" Te faltan " + (info.next.xp - state.userXP) + " XP para Nivel " + info.next.level + " (" + info.next.name + ").") : "");
+    $("sheetBackdrop").classList.add("visible");
+  }
+  function closeSheet(){ $("sheetBackdrop").classList.remove("visible"); }
+
+  // ---------------------------------------------------------------
+  // TABS
+  // ---------------------------------------------------------------
+  function showTab(name){
+    $("tab-arena").classList.toggle("visible", name==="arena");
+    $("tab-perfil").classList.toggle("visible", name==="perfil");
+    $("tab-guia").classList.toggle("visible", name==="guia");
+    $("navArena").classList.toggle("active", name==="arena");
+    $("navPerfil").classList.toggle("active", name==="perfil");
+    $("navGuia").classList.toggle("active", name==="guia");
+  }
+  $("navArena").addEventListener("click", function(){ showTab("arena"); });
+  $("navPerfil").addEventListener("click", function(){ showTab("perfil"); });
+  $("navGuia").addEventListener("click", function(){ showTab("guia"); });
+
+  // ---------------------------------------------------------------
+  // GUÍA — acordeón
+  // ---------------------------------------------------------------
+  document.querySelectorAll("#guiaAccordion .accordion-head").forEach(function(head){
+    head.addEventListener("click", function(){
+      var item = head.parentElement;
+      var wasOpen = item.classList.contains("open");
+      document.querySelectorAll("#guiaAccordion .accordion-item").forEach(function(i){ i.classList.remove("open"); });
+      if (!wasOpen) item.classList.add("open");
+    });
+  });
+  $("linkToPerfil").addEventListener("click", function(e){
+    e.stopPropagation();
+    showTab("perfil");
+  });
+
+  // ---------------------------------------------------------------
+  // WELCOME OVERLAY
+  // ---------------------------------------------------------------
+  $("welcomeCta").addEventListener("click", function(){
+    $("welcomeBackdrop").classList.add("hidden");
+  });
+
+  // ---------------------------------------------------------------
+  // TIER-UP CELEBRATION — evento grande al cruzar a un nuevo tramo de color
+  // ---------------------------------------------------------------
+  function showTierCelebration(tierIdx, lvlInfo){
+    var tier = TIERS[tierIdx];
+    var root = document.getElementById("app");
+    root.style.setProperty("--tier-glow-strong", tier.glow.replace(".45", ".7").replace(".55", ".75"));
+    $("tierTitle").textContent = tier.name;
+    $("tierSub").textContent = "Llegaste a Nivel " + lvlInfo.level + " · " + lvlInfo.name + ". Tu chip de nivel, tu avatar y tu perfil ahora usan este color — así se nota tu progreso de un vistazo.";
+    $("tierOverlay").classList.add("show");
+  }
+  $("tierDismiss").addEventListener("click", function(){
+    $("tierOverlay").classList.remove("show");
+  });
+
+  // ---------------------------------------------------------------
+  // CONEXIÓN AL BACKEND
+  // ---------------------------------------------------------------
+  var BACKEND_PHASE_TO_INDEX = { apertura:0, exploracion:1, construccion:2, cierre:3 };
+  var INDEX_TO_BACKEND_PHASE = ["apertura", "exploracion", "construccion", "cierre"];
+
+  function setConnBadge(online){
+    var el = $("connBadge");
+    el.classList.add("show");
+    if (online){
+      el.textContent = "● Conectado a DeepSeek";
+      el.className = "conn-badge show online";
+    } else {
+      el.textContent = "○ Modo simulado (sin backend)";
+      el.className = "conn-badge show offline";
+    }
+  }
+
+  function connectToBackend(){
+    fetch(API_BASE + "/cycles/active")
+      .then(function(r){ if (!r.ok) throw new Error("sin ciclo activo"); return r.json(); })
+      .then(function(cycle){
+        state.connected = true;
+        state.cycleId = cycle.id;
+        state.cycleNumber = cycle.number;
+        state.phaseIndex = BACKEND_PHASE_TO_INDEX[cycle.phase] != null ? BACKEND_PHASE_TO_INDEX[cycle.phase] : 1;
+        $("problemTitle").textContent = cycle.title;
+        $("problemBrief").textContent = cycle.context + " Criterio de éxito: " + cycle.success_criteria;
+        setConnBadge(true);
+        renderPhase();
+
+        return fetch(API_BASE + "/users/" + DEMO_USER_ID).then(function(r){ return r.json(); });
+      })
+      .then(function(user){
+        if (!user || user.error) return;
+        state.userXP = user.xp;
+        state.roleCounts = {
+          generador: user.role_generador || 0, constructor: user.role_constructor || 0,
+          verificador: user.role_verificador || 0, sintetizador: user.role_sintetizador || 0,
+        };
+        state.portfolio = (user.portfolio || []).map(function(p){
+          return { title: p.title, role: ROLE_META[p.dominant_role] ? ROLE_META[p.dominant_role].label : p.dominant_role, score: p.score, cycle: 0 };
+        });
+        renderLevelChip();
+        renderPermissions();
+        renderRoleBars();
+        renderPortfolio();
+      })
+      .catch(function(){
+        state.connected = false;
+        setConnBadge(false);
+      });
+  }
+
+  // ---------------------------------------------------------------
+  // INIT
+  // ---------------------------------------------------------------
+  function init(){
+    renderPhase();
+    revealSeedForPhase(state.phaseIndex);
+    renderLevelChip();
+    renderPermissions();
+    renderRoleBars();
+    renderPortfolio();
+    connectToBackend();
+  }
+  init();
+
+})();
+
+// ---------------------------------------------------------------
+// PWA: registro del service worker (cascarón offline + instalable)
+// ---------------------------------------------------------------
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function(){
+    navigator.serviceWorker.register("service-worker.js").catch(function(err){
+      console.warn("No se pudo registrar el service worker:", err);
+    });
+  });
+}
+</script>
+</body>
+</html>
