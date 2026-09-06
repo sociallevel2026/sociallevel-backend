@@ -1,0 +1,4 @@
+node_modules/
+.env
+db/sociallevel.db
+db/sociallevel.db-*
