@@ -1,0 +1,55 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "Ana Restrepo",
+      "email": "ana@test.com",
+      "xp": 0,
+      "role_generador": 0,
+      "role_constructor": 0,
+      "role_verificador": 0,
+      "role_sintetizador": 0,
+      "created_at": "2026-09-05T23:24:24.372Z"
+    }
+  ],
+  "cycles": [
+    {
+      "id": 1,
+      "number": 1,
+      "title": "Reducir el onboarding",
+      "context": "contexto de prueba",
+      "success_criteria": "criterio de prueba",
+      "phase": "exploracion",
+      "status": "activo",
+      "opened_at": "2026-09-05T23:24:24.383Z",
+      "closed_at": null
+    }
+  ],
+  "messages": [
+    {
+      "id": 1,
+      "cycle_id": 1,
+      "user_id": 1,
+      "phase": "exploracion",
+      "text": "Mensaje de prueba para verificar el manejo de errores.",
+      "reply_to_id": null,
+      "role": null,
+      "relevancia": null,
+      "originalidad": null,
+      "traccion": null,
+      "fundamentacion": null,
+      "claridad": null,
+      "total": null,
+      "justificacion": "Error de evaluación: 403 Host not in allowlist: api.deepseek.com. Add this host to your network egress settings to allow access.",
+      "evaluated_at": "2026-09-05T23:24:26.783Z",
+      "created_at": "2026-09-05T23:24:26.617Z",
+      "error": true
+    }
+  ],
+  "portfolio": [],
+  "_seq": {
+    "users": 1,
+    "cycles": 1,
+    "messages": 1
+  }
+}
