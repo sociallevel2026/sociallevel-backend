@@ -26,7 +26,17 @@ resuelven problemas reales en ciclos de 48 horas. Tu única función es evaluar
 la calidad de UN aporte de texto, siguiendo una rúbrica fija y objetiva. No
 participas en la conversación ni das opiniones — únicamente evalúas.
 
-Evalúa el "MENSAJE A EVALUAR" con estos cinco criterios (0-100 cada uno):
+PASO 1 — Antes de calificar nada, decide si el mensaje es "pertinente": un
+intento genuino de aportar al problema planteado. NO es pertinente si es:
+ruido sin sentido, spam, un saludo suelto sin contenido, texto aleatorio,
+groserías sin argumento, o cualquier cosa que no intente responder al
+problema — sin importar qué tan bien escrito esté o cuánto mida.
+
+PASO 2 — Si NO es pertinente: los cinco criterios deben quedar entre 0 y 8,
+y "total" no puede superar 5. No le des puntaje "por participar" ni por
+claridad — un mensaje irrelevante bien escrito sigue siendo irrelevante.
+
+PASO 3 — Si SÍ es pertinente, evalúa con estos cinco criterios (0-100 cada uno):
 - relevancia: ¿responde directamente al problema y a su criterio de éxito?
 - originalidad: ¿aporta algo no dicho antes en el hilo?
 - traccion: ¿construye sobre un aporte anterior, o es probable que otros construyan sobre él?
@@ -36,15 +46,22 @@ Evalúa el "MENSAJE A EVALUAR" con estos cinco criterios (0-100 cada uno):
 Se te dará el peso exacto de cada criterio para la fase actual — calcula "total"
 como el promedio ponderado exacto con esos pesos, redondeado al entero más cercano.
 
+Ejemplos de calibración (aplican siempre, sin importar el problema real):
+- "jajaja banana asdf" → pertinente:false, todos los criterios 0-3, total 0-2.
+- "hola buenos días" (sin ningún contenido sobre el problema) → pertinente:false, total 0-3.
+- "no sé, tal vez algo con IA?" → pertinente:true (es un intento real, aunque débil):
+  relevancia baja-media, originalidad baja, fundamentación muy baja, total ≈ 15-25.
+- Una idea concreta con un dato o ejemplo → pertinente:true, puntajes según la rúbrica normal.
+
 Clasifica el mensaje en un único rol dominante: "generador" (idea nueva,
 independiente), "constructor" (mejora o extiende un aporte ajeno), "verificador"
 (cuestiona o señala un riesgo con fundamento), o "sintetizador" (resume la
-discusión).
+discusión). Si pertinente:false, usa "generador" por defecto (el rol no importa
+en ese caso).
 
 Reglas: sé consistente entre evaluaciones similares; no premies la longitud
-por sí sola; si el mensaje no tiene relación real con el problema, relevancia
-debe ser menor a 30 sin importar la redacción. Responde ÚNICAMENTE llamando a
-la función solicitada, sin texto adicional.`;
+por sí sola. Responde ÚNICAMENTE llamando a la función solicitada, sin texto
+adicional.`;
 
 // Formato OpenAI/DeepSeek de function calling (distinto al de Claude:
 // aquí va anidado bajo "function", y el schema usa "parameters" en vez de
@@ -58,6 +75,7 @@ const TOOL_SCHEMA = {
     parameters: {
       type: "object",
       properties: {
+        pertinente: { type: "boolean", description: "¿Es un intento genuino de aportar al problema? false = spam, ruido, saludo vacío, texto sin relación" },
         relevancia: { type: "integer", description: "Puntaje 0-100" },
         originalidad: { type: "integer", description: "Puntaje 0-100" },
         traccion: { type: "integer", description: "Puntaje 0-100" },
@@ -67,7 +85,7 @@ const TOOL_SCHEMA = {
         rol: { type: "string", enum: ["generador", "constructor", "verificador", "sintetizador"] },
         justificacion_breve: { type: "string", description: "Máximo 20 palabras" },
       },
-      required: ["relevancia", "originalidad", "traccion", "fundamentacion", "claridad", "total", "rol", "justificacion_breve"],
+      required: ["pertinente", "relevancia", "originalidad", "traccion", "fundamentacion", "claridad", "total", "rol", "justificacion_breve"],
       additionalProperties: false,
     },
   },
@@ -107,7 +125,24 @@ Evalúa este mensaje siguiendo la rúbrica y los pesos de esta fase.`;
 
   const toolCall = response.choices[0].message.tool_calls?.[0];
   if (!toolCall) throw new Error("DeepSeek no devolvió una evaluación estructurada");
-  return JSON.parse(toolCall.function.arguments);
+  var result = JSON.parse(toolCall.function.arguments);
+
+  // Salvaguarda de código: no confiamos ciegamente en que el modelo siga la
+  // instrucción de "pertinente:false -> puntajes casi cero". Si marcó el
+  // mensaje como no pertinente pero igual devolvió puntajes altos, los
+  // recortamos aquí — esto no se puede saltar cambiando el prompt.
+  if (result.pertinente === false) {
+    var cap = 5;
+    result.relevancia = Math.min(result.relevancia, cap);
+    result.originalidad = Math.min(result.originalidad, cap);
+    result.traccion = Math.min(result.traccion, cap);
+    result.fundamentacion = Math.min(result.fundamentacion, cap);
+    result.claridad = Math.min(result.claridad, cap);
+    result.total = Math.min(result.total, cap);
+  }
+
+  return result;
 }
 
 module.exports = { evaluarMensaje, PHASE_WEIGHTS };
+
