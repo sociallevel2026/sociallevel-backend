@@ -129,6 +129,7 @@ router.post("/messages", async (req, res) => {
 
     db.update("messages", message.id, {
       role: evalResult.rol,
+      pertinente: evalResult.pertinente,
       relevancia: evalResult.relevancia, originalidad: evalResult.originalidad,
       traccion: evalResult.traccion, fundamentacion: evalResult.fundamentacion,
       claridad: evalResult.claridad, total: evalResult.total,
@@ -167,3 +168,4 @@ router.get("/cycles/:id/messages", (req, res) => {
 });
 
 module.exports = router;
+
