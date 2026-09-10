@@ -194,4 +194,3 @@ router.get("/cycles/:id/messages", (req, res) => {
 });
 
 module.exports = router;
-
