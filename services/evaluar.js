@@ -1,6 +1,14 @@
 // services/evaluar.js — motor de evaluación real, usando DeepSeek.
-// Mismo prompt y misma rúbrica que DeepSeek_Prompt_Evaluacion.md — pesos por
-// fase igual que en el prototipo (build/index.html, PHASE_WEIGHTS).
+//
+// ARQUITECTURA: evaluación POR LOTE al cierre del ciclo, no por mensaje en
+// tiempo real. Razones (decisión tomada en conversación con el fundador):
+//   1. Costo — el contexto del problema y la rúbrica se envían UNA vez para
+//      todo el ciclo, no una vez por cada mensaje.
+//   2. Calidad — la IA ve el hilo completo de una vez, así que puede juzgar
+//      mejor originalidad y tracción (ej. detecta que dos personas propusieron
+//      lo mismo, algo casi imposible de ver evaluando mensaje por mensaje).
+//   3. Incentivos — nadie ve su puntaje en vivo, así que no hay forma de
+//      "escribir para el número" en vez de para el problema real.
 //
 // NOTA: DeepSeek procesa los datos en servidores en China y no ofrece SOC 2
 // ni DPA/GDPR. Válido para pruebas, MVP interno o el Camino C (Comunidades
@@ -14,135 +22,158 @@ const client = new OpenAI({
   baseURL: "https://api.deepseek.com",
 });
 
-// Pesos por fase — igual que en el prototipo
+// Pesos por fase — igual que en el prototipo (PHASE_WEIGHTS en index.html)
 const PHASE_WEIGHTS = {
   exploracion:  { relevancia: 30, originalidad: 30, traccion: 10, fundamentacion: 20, claridad: 10 },
   construccion: { relevancia: 20, originalidad: 10, traccion: 35, fundamentacion: 25, claridad: 10 },
   cierre:       { relevancia: 20, originalidad: 5,  traccion: 15, fundamentacion: 20, claridad: 40 },
 };
 
-const SYSTEM_PROMPT = `Eres el motor de evaluación de SocialLevel, una plataforma donde equipos
-resuelven problemas reales en ciclos de 48 horas. Tu única función es evaluar
-la calidad de UN aporte de texto, siguiendo una rúbrica fija y objetiva. No
-participas en la conversación ni das opiniones — únicamente evalúas.
+const SYSTEM_PROMPT_LOTE = `Eres el motor de evaluación de SocialLevel, una plataforma donde equipos
+resuelven problemas reales en ciclos de 48 horas. Vas a evaluar TODOS los
+aportes de un ciclo YA CERRADO, de una sola vez, con el hilo completo como
+contexto — no participas en la conversación, no das opiniones, únicamente
+evalúas cada mensaje según la rúbrica.
 
-PASO 1 — Antes de calificar nada, decide si el mensaje es "pertinente": un
-intento genuino de aportar al problema planteado. NO es pertinente si es:
-ruido sin sentido, spam, un saludo suelto sin contenido, texto aleatorio,
-groserías sin argumento, o cualquier cosa que no intente responder al
-problema — sin importar qué tan bien escrito esté o cuánto mida.
+Para CADA mensaje de la lista, sigue este proceso:
 
-PASO 2 — Si NO es pertinente: los cinco criterios deben quedar entre 0 y 8,
-y "total" no puede superar 5. No le des puntaje "por participar" ni por
-claridad — un mensaje irrelevante bien escrito sigue siendo irrelevante.
+PASO 1 — Decide si es "pertinente": un intento genuino de aportar al problema
+planteado. NO es pertinente si es ruido sin sentido, spam, un saludo suelto
+sin contenido, texto aleatorio, groserías sin argumento, o cualquier cosa que
+no intente responder al problema — sin importar qué tan bien escrito esté.
+
+PASO 2 — Si NO es pertinente: los cinco criterios deben quedar entre 0 y 8, y
+"total" no puede superar 5.
 
 PASO 3 — Si SÍ es pertinente, evalúa con estos cinco criterios (0-100 cada uno):
 - relevancia: ¿responde directamente al problema y a su criterio de éxito?
-- originalidad: ¿aporta algo no dicho antes en el hilo?
-- traccion: ¿construye sobre un aporte anterior, o es probable que otros construyan sobre él?
+- originalidad: ¿aporta algo no dicho antes en el hilo? Como ves el hilo
+  completo, si dos personas proponen básicamente lo mismo, la segunda NO es
+  tan original como la primera — compara entre mensajes, no solo contra el
+  problema.
+- traccion: ¿construye sobre un aporte anterior, o generó que otros
+  construyeran sobre él? Con el hilo completo puedes confirmar esto de verdad,
+  no adivinarlo.
 - fundamentacion: ¿hay razonamiento, datos o evidencia?
 - claridad: ¿se entiende sin esfuerzo excesivo?
 
-Se te dará el peso exacto de cada criterio para la fase actual — calcula "total"
-como el promedio ponderado exacto con esos pesos, redondeado al entero más cercano.
+Cada mensaje trae su fase y los pesos exactos de esa fase — calcula "total"
+como el promedio ponderado exacto con esos pesos, redondeado al entero más
+cercano. Los pesos cambian entre mensajes si el ciclo avanzó de fase mientras
+se escribían.
 
-Ejemplos de calibración (aplican siempre, sin importar el problema real):
+Ejemplos de calibración (aplican siempre):
 - "jajaja banana asdf" → pertinente:false, todos los criterios 0-3, total 0-2.
-- "hola buenos días" (sin ningún contenido sobre el problema) → pertinente:false, total 0-3.
-- "no sé, tal vez algo con IA?" → pertinente:true (es un intento real, aunque débil):
-  relevancia baja-media, originalidad baja, fundamentación muy baja, total ≈ 15-25.
-- Una idea concreta con un dato o ejemplo → pertinente:true, puntajes según la rúbrica normal.
+- "hola buenos días" (sin contenido sobre el problema) → pertinente:false, total 0-3.
+- "no sé, tal vez algo con IA?" → pertinente:true (intento real, aunque débil).
+- Una idea concreta con un dato o ejemplo → pertinente:true, rúbrica normal.
 
-Clasifica el mensaje en un único rol dominante: "generador" (idea nueva,
-independiente), "constructor" (mejora o extiende un aporte ajeno), "verificador"
-(cuestiona o señala un riesgo con fundamento), o "sintetizador" (resume la
-discusión). Si pertinente:false, usa "generador" por defecto (el rol no importa
-en ese caso).
+Clasifica cada mensaje en un único rol dominante: "generador" (idea nueva,
+independiente), "constructor" (mejora o extiende un aporte ajeno),
+"verificador" (cuestiona o señala un riesgo con fundamento), o "sintetizador"
+(resume o consolida la discusión). Si pertinente:false, usa "generador" por
+defecto.
 
-Reglas: sé consistente entre evaluaciones similares; no premies la longitud
-por sí sola. Responde ÚNICAMENTE llamando a la función solicitada, sin texto
-adicional.`;
+Devuelve exactamente una evaluación por cada ID de mensaje que se te dio, sin
+saltarte ninguno y sin inventar IDs nuevos. Responde ÚNICAMENTE llamando a la
+función solicitada, sin texto adicional.`;
 
-// Formato OpenAI/DeepSeek de function calling (distinto al de Claude:
-// aquí va anidado bajo "function", y el schema usa "parameters" en vez de
-// "input_schema").
-const TOOL_SCHEMA = {
+const TOOL_SCHEMA_LOTE = {
   type: "function",
   function: {
-    name: "evaluar_aporte",
-    description: "Evalúa un aporte dentro de un ciclo de la Arena de Problemas de SocialLevel",
+    name: "evaluar_ciclo",
+    description: "Evalúa todos los mensajes de un ciclo cerrado de la Arena de Problemas, de una sola vez",
     strict: true,
     parameters: {
       type: "object",
       properties: {
-        pertinente: { type: "boolean", description: "¿Es un intento genuino de aportar al problema? false = spam, ruido, saludo vacío, texto sin relación" },
-        relevancia: { type: "integer", description: "Puntaje 0-100" },
-        originalidad: { type: "integer", description: "Puntaje 0-100" },
-        traccion: { type: "integer", description: "Puntaje 0-100" },
-        fundamentacion: { type: "integer", description: "Puntaje 0-100" },
-        claridad: { type: "integer", description: "Puntaje 0-100" },
-        total: { type: "integer", description: "Promedio ponderado 0-100" },
-        rol: { type: "string", enum: ["generador", "constructor", "verificador", "sintetizador"] },
-        justificacion_breve: { type: "string", description: "Máximo 20 palabras" },
+        evaluaciones: {
+          type: "array",
+          description: "Una evaluación por cada mensaje recibido, en el mismo orden",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "integer", description: "El ID del mensaje evaluado, tal como se recibió" },
+              pertinente: { type: "boolean" },
+              relevancia: { type: "integer", description: "0-100" },
+              originalidad: { type: "integer", description: "0-100" },
+              traccion: { type: "integer", description: "0-100" },
+              fundamentacion: { type: "integer", description: "0-100" },
+              claridad: { type: "integer", description: "0-100" },
+              total: { type: "integer", description: "Promedio ponderado 0-100" },
+              rol: { type: "string", enum: ["generador", "constructor", "verificador", "sintetizador"] },
+              justificacion_breve: { type: "string", description: "Máximo 20 palabras" },
+            },
+            required: ["id", "pertinente", "relevancia", "originalidad", "traccion", "fundamentacion", "claridad", "total", "rol", "justificacion_breve"],
+            additionalProperties: false,
+          },
+        },
       },
-      required: ["pertinente", "relevancia", "originalidad", "traccion", "fundamentacion", "claridad", "total", "rol", "justificacion_breve"],
+      required: ["evaluaciones"],
       additionalProperties: false,
     },
   },
 };
 
-async function evaluarMensaje({ problema, historial, mensaje, autor, respuestaA, fase }) {
-  const pesos = PHASE_WEIGHTS[fase] || PHASE_WEIGHTS.exploracion;
-  const bloqueRespuesta = respuestaA ? `\nESTE MENSAJE RESPONDE A:\n"${respuestaA}"\n` : "";
+// mensajes: [{ id, autor, texto, fase, respuestaA (texto o null) }]
+async function evaluarCicloCompleto({ problema, mensajes }) {
+  if (!mensajes.length) return [];
+
+  const listaTexto = mensajes.map((m) => {
+    const pesos = PHASE_WEIGHTS[m.fase] || PHASE_WEIGHTS.exploracion;
+    const bloqueRespuesta = m.respuestaA ? `\n   (Responde a: "${m.respuestaA}")` : "";
+    return `[ID ${m.id}] Fase: ${m.fase} — pesos: relevancia ${pesos.relevancia}%, originalidad ${pesos.originalidad}%, tracción ${pesos.traccion}%, fundamentación ${pesos.fundamentacion}%, claridad ${pesos.claridad}%
+${m.autor}: "${m.texto}"${bloqueRespuesta}`;
+  }).join("\n\n");
 
   const userPrompt = `PROBLEMA DEL CICLO:
 Título: ${problema.titulo}
 Contexto: ${problema.contexto}
 Criterio de éxito: ${problema.criterio_exito}
 
-FASE ACTUAL: ${fase}
-PESOS DE ESTA FASE: relevancia ${pesos.relevancia}%, originalidad ${pesos.originalidad}%, tracción ${pesos.traccion}%, fundamentación ${pesos.fundamentacion}%, claridad ${pesos.claridad}%
+Este ciclo ya cerró. Evalúa TODOS los mensajes de abajo, en orden cronológico,
+usando el hilo completo como contexto para comparar originalidad y tracción
+entre ellos.
 
-MENSAJES PREVIOS RELEVANTES DEL HILO (máx. 6):
-${historial || "(sin mensajes previos en este hilo)"}
-${bloqueRespuesta}
-MENSAJE A EVALUAR:
-Autor: ${autor}
-Texto: "${mensaje}"
+MENSAJES A EVALUAR (${mensajes.length} en total):
 
-Evalúa este mensaje siguiendo la rúbrica y los pesos de esta fase.`;
+${listaTexto}
+
+Devuelve una evaluación por cada uno de los ${mensajes.length} IDs de arriba.`;
 
   const response = await client.chat.completions.create({
-    model: "deepseek-chat", // enruta a DeepSeek-V4-Flash
-    temperature: 0.2,       // baja, para consistencia entre evaluaciones similares
+    model: "deepseek-chat",
+    temperature: 0.2,
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: SYSTEM_PROMPT_LOTE },
       { role: "user", content: userPrompt },
     ],
-    tools: [TOOL_SCHEMA],
-    tool_choice: { type: "function", function: { name: "evaluar_aporte" } },
+    tools: [TOOL_SCHEMA_LOTE],
+    tool_choice: { type: "function", function: { name: "evaluar_ciclo" } },
   });
 
   const toolCall = response.choices[0].message.tool_calls?.[0];
-  if (!toolCall) throw new Error("DeepSeek no devolvió una evaluación estructurada");
-  var result = JSON.parse(toolCall.function.arguments);
+  if (!toolCall) throw new Error("DeepSeek no devolvió evaluaciones para el ciclo");
+  const result = JSON.parse(toolCall.function.arguments);
 
-  // Salvaguarda de código: no confiamos ciegamente en que el modelo siga la
-  // instrucción de "pertinente:false -> puntajes casi cero". Si marcó el
-  // mensaje como no pertinente pero igual devolvió puntajes altos, los
-  // recortamos aquí — esto no se puede saltar cambiando el prompt.
-  if (result.pertinente === false) {
-    var cap = 5;
-    result.relevancia = Math.min(result.relevancia, cap);
-    result.originalidad = Math.min(result.originalidad, cap);
-    result.traccion = Math.min(result.traccion, cap);
-    result.fundamentacion = Math.min(result.fundamentacion, cap);
-    result.claridad = Math.min(result.claridad, cap);
-    result.total = Math.min(result.total, cap);
-  }
+  // Misma salvaguarda de código que antes, aplicada a cada mensaje del lote:
+  // no confiamos ciegamente en que el modelo respete "pertinente:false ->
+  // puntajes casi cero" — lo forzamos aquí, sin excepción.
+  result.evaluaciones.forEach((ev) => {
+    if (ev.pertinente === false) {
+      const cap = 5;
+      ev.relevancia = Math.min(ev.relevancia, cap);
+      ev.originalidad = Math.min(ev.originalidad, cap);
+      ev.traccion = Math.min(ev.traccion, cap);
+      ev.fundamentacion = Math.min(ev.fundamentacion, cap);
+      ev.claridad = Math.min(ev.claridad, cap);
+      ev.total = Math.min(ev.total, cap);
+    }
+  });
 
-  return result;
+  return result.evaluaciones;
 }
 
-module.exports = { evaluarMensaje, PHASE_WEIGHTS };
+module.exports = { evaluarCicloCompleto, PHASE_WEIGHTS };
+
 
